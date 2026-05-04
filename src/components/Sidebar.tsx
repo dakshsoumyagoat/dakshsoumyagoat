@@ -32,18 +32,18 @@ export default function Sidebar() {
       zIndex: 100,
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 6,
-            background: 'var(--neon)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', color: '#000', fontWeight: 900, fontSize: 12,
-          }}>JCC</div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.1 }}>JEE Command</div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--neon)', lineHeight: 1.1 }}>Center</div>
-          </div>
-        </div>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
+        <img
+          src="/logo1.png"
+          alt="JEE Dashboard"
+          style={{
+            width: 160,
+            height: 160,
+            objectFit: 'contain',
+            display: 'block',
+            filter: 'drop-shadow(0 0 10px #39ff1455)',
+          }}
+        />
       </div>
 
       {/* Stats bar */}

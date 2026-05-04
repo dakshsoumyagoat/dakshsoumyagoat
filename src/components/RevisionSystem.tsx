@@ -50,8 +50,13 @@ export default function RevisionSystem() {
   return (
     <div style={{ padding: '24px 28px' }}>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="section-title" style={{ marginBottom: 4 }}>SPACED REPETITION</div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 20 }}>Revision System</h1>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div className="section-title" style={{ marginBottom: 4 }}>SPACED REPETITION</div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Revision System</h1>
+          </div>
+          <img src="/logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
+        </div>
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>

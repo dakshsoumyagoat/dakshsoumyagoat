@@ -81,16 +81,28 @@ export default function Dashboard() {
   return (
     <div style={{ padding: '24px 28px' }}>
       {/* Header */}
-      <motion.div initial="hidden" animate="visible" custom={0} variants={fade} style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+      <motion.div initial="hidden" animate="visible" custom={0} variants={fade} style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            Command Center
+          </h1>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 2 }}>
+            Your JEE preparation, engineered.
+          </div>
         </div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          Command Center
-        </h1>
-        <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 2 }}>
-          Your JEE preparation, engineered.
-        </div>
+        <img
+          src="/logo2.png"
+          alt="JEE Dashboard Globe"
+          style={{
+            width: 64, height: 64, objectFit: 'contain',
+            filter: 'drop-shadow(0 0 12px #39ff1466)',
+            opacity: 0.85,
+            flexShrink: 0,
+          }}
+        />
       </motion.div>
 
       {/* Top Stats */}

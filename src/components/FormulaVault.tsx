@@ -42,8 +42,13 @@ export default function FormulaVault() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
-            <div className="section-title" style={{ marginBottom: 4 }}>KNOWLEDGE BASE</div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Formula Vault</h1>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div>
+                <div className="section-title" style={{ marginBottom: 4 }}>KNOWLEDGE BASE</div>
+                <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Formula Vault</h1>
+              </div>
+              <img src="/logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
+            </div>
           </div>
           <button className="btn-primary" onClick={() => setShowAdd(!showAdd)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Plus size={14} /> New Note
