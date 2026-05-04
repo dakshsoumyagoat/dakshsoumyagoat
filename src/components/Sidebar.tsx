@@ -34,7 +34,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
         <img
-          src="/logo1.png"
+          src="./logo1.png"
           alt="JEE Dashboard"
           style={{
             width: 160,

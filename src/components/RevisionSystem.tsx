@@ -14,11 +14,6 @@ const CYCLES = [
   { revision: 5, label: 'R5', days: 30, nextDays: 60, color: 'var(--red)',    desc: 'Day 30' },
 ]
 
-function getNextRevisionDays(revisionCount: number): number {
-  const cycle = CYCLES.find(c => c.revision === revisionCount + 1)
-  return cycle ? cycle.days : CYCLES[CYCLES.length - 1].nextDays
-}
-
 function addDays(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
@@ -54,7 +49,7 @@ function CycleDots({ revisionCount }: { revisionCount: number }) {
   )
 }
 
-function RevisionRow({ ch, index, isLast }: { ch: Chapter & { daysUntil: number | null }; index: number; isLast: boolean }) {
+function RevisionRow({ ch, isLast }: { ch: Chapter & { daysUntil: number | null }; isLast: boolean }) {
   const { updateChapter } = useStore()
   const [marking, setMarking] = useState(false)
 
@@ -194,7 +189,7 @@ export default function RevisionSystem() {
             <div className="section-title" style={{ marginBottom: 4 }}>SPACED REPETITION</div>
             <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Revision System</h1>
           </div>
-          <img src="/logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
+          <img src="./logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
         </div>
 
         {/* Stats */}
@@ -262,7 +257,7 @@ export default function RevisionSystem() {
                 </div>
               ) : (
                 filtered.map((ch, i) => (
-                  <RevisionRow key={ch.id} ch={ch} index={i} isLast={i === filtered.length - 1} />
+                  <RevisionRow key={ch.id} ch={ch} isLast={i === filtered.length - 1} />
                 ))
               )}
             </div>
