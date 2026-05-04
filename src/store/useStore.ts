@@ -131,8 +131,6 @@ const generateGrade11Chapters = (): Chapter[] => {
     { unit: 'Mathematical Reasoning', chapters: ['Mathematical Reasoning'] },
   ]
 
-  const masteries: Mastery[] = ['Not Started', 'Weak', 'Average', 'Strong', 'Mastered']
-  const difficulties: Difficulty[] = ['Easy', 'Medium', 'Hard']
   const all = [
     { sub: 'Physics' as Subject, units: physicsChapters },
     { sub: 'Chemistry' as Subject, units: chemChapters },
@@ -144,23 +142,21 @@ const generateGrade11Chapters = (): Chapter[] => {
   all.forEach(({ sub, units }) => {
     units.forEach(u => {
       u.chapters.forEach(name => {
-        const theory = Math.floor(Math.random() * 100)
-        const confidence = Math.floor(Math.random() * 100)
         chapters.push({
           id: `g11-${idx++}`,
           subject: sub,
           unit: u.unit,
           name,
           grade: 11,
-          theory,
-          pyqs: Math.floor(Math.random() * 80),
-          mockAccuracy: Math.floor(Math.random() * 90) + 10,
-          revisionCount: Math.floor(Math.random() * 5),
-          confidence,
-          mastery: masteries[Math.min(Math.floor(confidence / 25), 4)],
-          lastStudied: idx % 3 === 0 ? null : new Date(Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 14).toISOString().split('T')[0],
-          nextRevision: new Date(Date.now() + Math.random() * 1000 * 60 * 60 * 24 * 7).toISOString().split('T')[0],
-          difficulty: difficulties[Math.floor(Math.random() * 3)],
+          theory: 0,
+          pyqs: 0,
+          mockAccuracy: 0,
+          revisionCount: 0,
+          confidence: 0,
+          mastery: 'Not Started',
+          lastStudied: null,
+          nextRevision: null,
+          difficulty: 'Medium',
           subtopics: [],
           completedSubtopics: [],
         })
@@ -393,47 +389,7 @@ const buildGrade12Chapters = (): Chapter[] => {
   return chapters
 }
 
-const generateSessions = (): StudySession[] => {
-  const subjects: Subject[] = ['Physics', 'Chemistry', 'Mathematics']
-  const types: StudySession['type'][] = ['Theory', 'Practice', 'Revision', 'Mock']
-  const sessions: StudySession[] = []
-  for (let i = 0; i < 60; i++) {
-    const d = new Date(Date.now() - i * 1000 * 60 * 60 * 24 * 0.5)
-    sessions.push({
-      id: `s-${i}`,
-      date: d.toISOString().split('T')[0],
-      subject: subjects[Math.floor(Math.random() * 3)],
-      chapter: 'Kinematics',
-      duration: Math.floor(Math.random() * 120) + 30,
-      type: types[Math.floor(Math.random() * 4)],
-      notes: '',
-    })
-  }
-  return sessions
-}
 
-const generateMockTests = (): MockTest[] => {
-  const tests: MockTest[] = []
-  for (let i = 0; i < 12; i++) {
-    const physics = Math.floor(Math.random() * 60) + 20
-    const chemistry = Math.floor(Math.random() * 60) + 20
-    const maths = Math.floor(Math.random() * 60) + 20
-    tests.push({
-      id: `mt-${i}`,
-      date: new Date(Date.now() - i * 1000 * 60 * 60 * 24 * 7).toISOString().split('T')[0],
-      type: i % 3 === 0 ? 'JEE Advanced' : 'JEE Main',
-      physics,
-      chemistry,
-      maths,
-      total: physics + chemistry + maths,
-      maxMarks: 300,
-      timeSpent: Math.floor(Math.random() * 60) + 150,
-      rank: Math.floor(Math.random() * 5000) + 500,
-      accuracy: Math.floor(Math.random() * 40) + 50,
-    })
-  }
-  return tests.reverse()
-}
 
 export const useStore = create<AppState>((set) => ({
   activeView: 'dashboard',
@@ -452,41 +408,26 @@ export const useStore = create<AppState>((set) => ({
       return { ...c, completedSubtopics: completed, theory: pct }
     })
   })),
-  sessions: generateSessions(),
+  sessions: [],
   addSession: (session) => set((s) => ({ sessions: [session, ...s.sessions] })),
-  mockTests: generateMockTests(),
+  mockTests: [],
   addMockTest: (test) => set((s) => ({ mockTests: [...s.mockTests, test] })),
-  bookmarks: [
-    { id: 'bq-1', subject: 'Physics', chapter: 'Rotational Motion', difficulty: 'Hard', tags: ['MOI', 'Angular Momentum'], notes: 'Tricky part - parallel axis theorem with composite bodies', bookmarked: '2024-01-15', attempts: 3, solved: false },
-    { id: 'bq-2', subject: 'Chemistry', chapter: 'Electrochemistry', difficulty: 'Medium', tags: ['Nernst Equation'], notes: 'Remember to use log base 10', bookmarked: '2024-01-18', attempts: 2, solved: true },
-    { id: 'bq-3', subject: 'Mathematics', chapter: 'Definite Integration', difficulty: 'Hard', tags: ['King Property', 'Limits'], notes: 'Use king property then substitute', bookmarked: '2024-01-20', attempts: 4, solved: false },
-    { id: 'bq-4', subject: 'Physics', chapter: 'Wave Optics', difficulty: 'Medium', tags: ['YDSE', 'Fringe Width'], notes: 'Path difference calculation', bookmarked: '2024-01-22', attempts: 1, solved: false },
-    { id: 'bq-5', subject: 'Mathematics', chapter: 'Complex Numbers', difficulty: 'Hard', tags: ['Geometry', 'Rotation'], notes: 'Rotation by e^(i theta)', bookmarked: '2024-01-25', attempts: 2, solved: true },
-  ],
+  bookmarks: [],
   addBookmark: (q) => set((s) => ({ bookmarks: [q, ...s.bookmarks] })),
   removeBookmark: (id) => set((s) => ({ bookmarks: s.bookmarks.filter(b => b.id !== id) })),
   updateBookmark: (id, updates) => set((s) => ({ bookmarks: s.bookmarks.map(b => b.id === id ? { ...b, ...updates } : b) })),
-  tasks: [
-    { id: 't-1', title: 'Complete Rotational Dynamics theory', subject: 'Physics', type: 'Theory', date: new Date().toISOString().split('T')[0], duration: 90, completed: false, chapter: 'Rotational Motion' },
-    { id: 't-2', title: 'Solve 30 Organic Chemistry PYQs', subject: 'Chemistry', type: 'Practice', date: new Date().toISOString().split('T')[0], duration: 60, completed: true, chapter: 'Organic' },
-    { id: 't-3', title: 'Revise Integration formulas', subject: 'Mathematics', type: 'Revision', date: new Date().toISOString().split('T')[0], duration: 45, completed: false, chapter: 'Definite Integration' },
-    { id: 't-4', title: 'JEE Main Mock Test #13', subject: 'General', type: 'Mock', date: new Date().toISOString().split('T')[0], duration: 180, completed: false },
-  ],
+  tasks: [],
   addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
   toggleTask: (id) => set((s) => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })),
-  formulas: [
-    { id: 'f-1', subject: 'Physics', title: 'Rotational Mechanics', content: '**Moment of Inertia**\n- Solid sphere: I = (2/5)MR²\n- Ring: I = MR²\n- Disk: I = (1/2)MR²\n- Rod (center): I = ML²/12\n\n**Parallel Axis Theorem**\nI = I_cm + Md²\n\n**Torque**\nτ = Iα = r × F', tags: ['Rotation', 'MOI', 'Mechanics'], created: '2024-01-10', pinned: true },
-    { id: 'f-2', subject: 'Mathematics', title: 'Integration Techniques', content: '**Standard Integrals**\n∫sinx dx = -cosx + C\n∫cosx dx = sinx + C\n∫tan x dx = ln|sec x| + C\n\n**King Property**\n∫₀ᵃ f(x)dx = ∫₀ᵃ f(a-x)dx\n\n**By Parts**\n∫uv dx = u∫v dx - ∫(u\'∫v dx)dx', tags: ['Integration', 'Calculus'], created: '2024-01-12', pinned: true },
-    { id: 'f-3', subject: 'Chemistry', title: 'Electrochemistry', content: '**Nernst Equation**\nE = E° - (RT/nF) × ln Q\n\n**At 25°C:**\nE = E° - (0.0592/n) × log Q\n\n**Cell Reaction:**\nΔG° = -nFE°\nΔG° = -RT ln K', tags: ['Electrochemistry', 'Nernst'], created: '2024-01-14', pinned: false },
-  ],
+  formulas: [],
   addFormula: (f) => set((s) => ({ formulas: [f, ...s.formulas] })),
   updateFormula: (id, updates) => set((s) => ({ formulas: s.formulas.map(f => f.id === id ? { ...f, ...updates } : f) })),
   removeFormula: (id) => set((s) => ({ formulas: s.formulas.filter(f => f.id !== id) })),
   pomodoroActive: false,
   setPomodoroActive: (v) => set({ pomodoroActive: v }),
-  streakDays: 14,
-  xp: 3420,
+  streakDays: 0,
+  xp: 0,
   addXP: (amount) => set((s) => ({ xp: s.xp + amount })),
-  studyHoursToday: 4.5,
-  productivityScore: 78,
+  studyHoursToday: 0,
+  productivityScore: 0,
 }))
