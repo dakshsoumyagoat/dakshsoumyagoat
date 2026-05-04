@@ -94,7 +94,7 @@ export default function Dashboard() {
           </div>
         </div>
         <img
-          src="/logo2.png"
+          src="./logo2.png"
           alt="JEE Dashboard Globe"
           style={{
             width: 64, height: 64, objectFit: 'contain',

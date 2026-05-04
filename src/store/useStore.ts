@@ -360,8 +360,6 @@ const GRADE12_MATHS: G12ChapterDef[] = [
 ]
 
 const buildGrade12Chapters = (): Chapter[] => {
-  const difficulties: Difficulty[] = ['Easy', 'Medium', 'Hard']
-  const masteries: Mastery[] = ['Not Started', 'Weak', 'Average', 'Strong', 'Mastered']
   const all: { sub: Subject; defs: G12ChapterDef[] }[] = [
     { sub: 'Physics', defs: GRADE12_PHYSICS },
     { sub: 'Chemistry', defs: GRADE12_CHEMISTRY },
