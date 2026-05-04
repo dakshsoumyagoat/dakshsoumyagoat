@@ -91,21 +91,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Exam Countdown */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '10px 12px' }}>
-          <div className="section-title" style={{ marginBottom: 6 }}>JEE MAIN 2026</div>
-          <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--neon)', fontFamily: 'JetBrains Mono' }}>
-            {Math.ceil((new Date('2027-01-22').getTime() - Date.now()) / (1000 * 60 * 60 * 24))} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>days</span>
-          </div>
-          <div style={{ marginTop: 6 }}>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: '42%' }} />
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>42% prep complete</div>
-          </div>
-        </div>
-      </div>
     </aside>
   )
 }
