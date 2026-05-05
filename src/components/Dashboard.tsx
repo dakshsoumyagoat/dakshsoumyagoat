@@ -124,8 +124,7 @@ export default function Dashboard() {
     insights.push({ type: 'danger', text: `${weakCount} chapter${weakCount > 1 ? 's' : ''} marked Weak — review these before your next mock.` })
   if (dueToday > 0)
     insights.push({ type: 'warning', text: `${dueToday} revision${dueToday > 1 ? 's' : ''} due today. Open Revision System to mark them done.` })
-  if (notStarted > 0)
-    insights.push({ type: 'info', text: `${notStarted} chapters haven't been started yet. Prioritise the high-weightage ones.` })
+
   if (lowestAvg < 30)
     insights.push({ type: 'warning', text: `${lowestSub} needs the most attention — avg mastery is at ${lowestAvg}%.` })
   if (completedTasks > 0 && todayTaskTotal > 0)

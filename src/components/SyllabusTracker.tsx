@@ -54,7 +54,6 @@ function SubjectStats({ subject, grade }: { subject: Subject; grade: 11 | 12 }) 
         { label: grade === 12 ? 'Lectures Done' : 'Theory', value: avgTheory + '%', color: 'var(--blue)' },
         { label: 'PYQs', value: avgPyq + '%', color: 'var(--purple)' },
         { label: 'Mastered', value: mastered, color: 'var(--neon)' },
-        { label: 'Weak', value: weak, color: 'var(--red)' },
       ].map(s => (
         <div key={s.label} className="card-elevated" style={{ padding: '10px 12px', textAlign: 'center' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -131,7 +130,7 @@ function G11ChapterRow({ chapter }: { chapter: Chapter }) {
             })}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {(['Not Started', 'Weak', 'Average', 'Strong', 'Mastered'] as Mastery[]).map(m => (
+            {(['Not Started', 'Average', 'Strong', 'Mastered'] as Mastery[]).map(m => (
               <button key={m} onClick={() => updateChapter(chapter.id, { mastery: m })}
                 className={chapter.mastery === m ? 'btn-primary' : 'btn-ghost'}
                 style={{ padding: '4px 10px', fontSize: 11 }}>{m}</button>
@@ -248,7 +247,7 @@ function G12ChapterRow({ chapter }: { chapter: Chapter }) {
               {/* Mastery selector */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>Mastery:</span>
-                {(['Not Started', 'Weak', 'Average', 'Strong', 'Mastered'] as Mastery[]).map(m => (
+                {(['Not Started', 'Average', 'Strong', 'Mastered'] as Mastery[]).map(m => (
                   <button key={m} onClick={() => updateChapter(chapter.id, { mastery: m })}
                     className={chapter.mastery === m ? 'btn-primary' : 'btn-ghost'}
                     style={{ padding: '3px 9px', fontSize: 11 }}>{m}</button>
@@ -344,7 +343,7 @@ export default function SyllabusTracker() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
           <Filter size={14} color="var(--text-muted)" />
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Filter:</span>
-          {['All', 'Not Started', 'Weak', 'Average', 'Strong', 'Mastered'].map(m => (
+          {['All', 'Not Started', 'Average', 'Strong', 'Mastered'].map(m => (
             <button key={m} onClick={() => setFilterMastery(m)}
               style={{
                 padding: '3px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',

@@ -109,8 +109,7 @@ export default function StudyPlanner() {
     insights.push({ type: 'burnout', text: `${weakCount} chapter${weakCount > 1 ? 's' : ''} marked Weak. Schedule targeted practice sessions for them.` })
   if (burnoutRisk >= 60)
     insights.push({ type: 'burnout', text: `Burnout risk is High (${totalWeekHours.toFixed(1)}h this week). Plan a lighter day — rest improves retention.` })
-  if (notStarted > 10)
-    insights.push({ type: 'optimize', text: `${notStarted} chapters haven't been started. Tackle high-weightage chapters first.` })
+
 
   return (
     <div style={{ padding: '24px 28px' }}>
