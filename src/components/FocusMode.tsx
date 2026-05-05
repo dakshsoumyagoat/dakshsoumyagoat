@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useStore } from '../store/useStore'
+import type { Subject } from '../store/useStore'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Pause, RotateCcw, Coffee, Zap, Volume2, VolumeX, Timer, Plus, Minus, Settings } from 'lucide-react'
+import { Play, Pause, RotateCcw, Coffee, Zap, Timer, Plus, Minus, Settings } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 const PRESETS = [
   { label: 'Pomodoro',     work: 25,  break: 5,  color: 'var(--neon)' },
@@ -10,13 +12,11 @@ const PRESETS = [
   { label: 'Custom',       work: 45,  break: 10, color: 'var(--purple)' },
 ]
 
-const AMBIENT = ['Deep Focus', 'Rain', 'White Noise', 'Cafe', 'Forest']
-
-const sessionHistory = [
-  { time: '09:00 AM', duration: 25, subject: 'Mathematics', type: 'Pomodoro' },
-  { time: '09:30 AM', duration: 90, subject: 'Physics',     type: 'Deep Work' },
-  { time: '11:10 AM', duration: 25, subject: 'Chemistry',   type: 'Pomodoro' },
-  { time: '11:40 AM', duration: 25, subject: 'Mathematics', type: 'Pomodoro' },
+const SUBJECTS: { label: string; value: Subject | 'General'; color: string }[] = [
+  { label: 'Physics',  value: 'Physics',     color: 'var(--blue)' },
+  { label: 'Chem',     value: 'Chemistry',   color: 'var(--amber)' },
+  { label: 'Maths',    value: 'Mathematics', color: 'var(--neon)' },
+  { label: 'General',  value: 'General',     color: 'var(--purple)' },
 ]
 
 // ── localStorage keys ─────────────────────────────────────────────────────────
@@ -26,18 +26,20 @@ const LS_IS_WORK  = 'jcc_focus_isWork'
 const LS_RUNNING  = 'jcc_focus_running'
 const LS_WORK_MIN = 'jcc_focus_workMin'
 const LS_BRK_MIN  = 'jcc_focus_brkMin'
+const LS_SUBJECT  = 'jcc_focus_subject'
 
-function saveSession(endTime: number, mode: number, isWork: boolean, workMin: number, brkMin: number) {
+function saveSession(endTime: number, mode: number, isWork: boolean, workMin: number, brkMin: number, subject: string) {
   localStorage.setItem(LS_END_TIME, String(endTime))
   localStorage.setItem(LS_MODE,     String(mode))
   localStorage.setItem(LS_IS_WORK,  String(isWork))
   localStorage.setItem(LS_RUNNING,  'true')
   localStorage.setItem(LS_WORK_MIN, String(workMin))
   localStorage.setItem(LS_BRK_MIN,  String(brkMin))
+  localStorage.setItem(LS_SUBJECT,  subject)
 }
 
 function clearSession() {
-  ;[LS_END_TIME, LS_MODE, LS_IS_WORK, LS_RUNNING, LS_WORK_MIN, LS_BRK_MIN].forEach(k => localStorage.removeItem(k))
+  ;[LS_END_TIME, LS_MODE, LS_IS_WORK, LS_RUNNING, LS_WORK_MIN, LS_BRK_MIN, LS_SUBJECT].forEach(k => localStorage.removeItem(k))
 }
 
 function loadSession() {
@@ -45,13 +47,14 @@ function loadSession() {
   const mode       = Number(localStorage.getItem(LS_MODE) ?? '0')
   const isWork     = localStorage.getItem(LS_IS_WORK) !== 'false'
   const wasRunning = localStorage.getItem(LS_RUNNING) === 'true'
-  const workMin    = Number(localStorage.getItem(LS_WORK_MIN) ?? PRESETS[mode].work)
-  const brkMin     = Number(localStorage.getItem(LS_BRK_MIN)  ?? PRESETS[mode].break)
+  const workMin    = Number(localStorage.getItem(LS_WORK_MIN) ?? PRESETS[0].work)
+  const brkMin     = Number(localStorage.getItem(LS_BRK_MIN)  ?? PRESETS[0].break)
+  const subject    = localStorage.getItem(LS_SUBJECT) ?? 'General'
 
   if (!wasRunning || !endTime) return null
   const remaining = Math.floor((endTime - Date.now()) / 1000)
   if (remaining <= 0) { clearSession(); return null }
-  return { seconds: remaining, mode, isWork, workMin, brkMin }
+  return { seconds: remaining, mode, isWork, workMin, brkMin, subject }
 }
 
 function formatTime(sec: number) {
@@ -60,171 +63,123 @@ function formatTime(sec: number) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-// ── Stepper: +/- button with number input ─────────────────────────────────────
 function TimeStepper({
   label, value, onChange, min = 1, max = 180, disabled, color,
-}: {
-  label: string; value: number; onChange: (v: number) => void
-  min?: number; max?: number; disabled: boolean; color: string
-}) {
+}: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; disabled: boolean; color: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(String(value))
-  const inputRef              = useRef<HTMLInputElement>(null)
-
   useEffect(() => { if (!editing) setDraft(String(value)) }, [value, editing])
 
   const commit = (raw: string) => {
     const n = Math.max(min, Math.min(max, parseInt(raw) || value))
-    onChange(n)
-    setDraft(String(n))
-    setEditing(false)
+    onChange(n); setDraft(String(n)); setEditing(false)
   }
-
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      padding: '8px 12px', borderRadius: 10,
+      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10,
       background: disabled ? 'var(--bg-elevated)' : `${color}12`,
       border: `1px solid ${disabled ? 'var(--border)' : color + '40'}`,
-      transition: 'all 0.15s',
     }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, minWidth: 36 }}>{label}</div>
-
-      <button
-        disabled={disabled || value <= min}
-        onClick={() => onChange(Math.max(min, value - 1))}
-        style={{
-          width: 22, height: 22, borderRadius: 6, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-          background: disabled ? 'transparent' : 'var(--bg-elevated)',
-          color: disabled ? 'var(--border)' : 'var(--text-secondary)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}
-      ><Minus size={11} /></button>
-
+      <button disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - 1))}
+        style={{ width: 22, height: 22, borderRadius: 6, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+          background: disabled ? 'transparent' : 'var(--bg-elevated)', color: disabled ? 'var(--border)' : 'var(--text-secondary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Minus size={11} />
+      </button>
       {editing ? (
-        <input
-          ref={inputRef}
-          value={draft}
-          autoFocus
-          onChange={e => setDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={e => { if (e.key === 'Enter') commit(draft); if (e.key === 'Escape') setEditing(false) }}
-          style={{
-            width: 38, textAlign: 'center', background: 'var(--bg)', border: `1px solid ${color}`,
-            borderRadius: 6, color: color, fontWeight: 700, fontSize: 14, padding: '2px 4px',
-          }}
-        />
+        <input autoFocus value={draft} onChange={e => setDraft(e.target.value)}
+          onBlur={() => commit(draft)} onKeyDown={e => { if (e.key === 'Enter') commit(draft); if (e.key === 'Escape') setEditing(false) }}
+          style={{ width: 38, textAlign: 'center', background: 'var(--bg)', border: `1px solid ${color}`, borderRadius: 6, color, fontWeight: 700, fontSize: 14, padding: '2px 4px' }} />
       ) : (
-        <button
-          disabled={disabled}
-          onClick={() => !disabled && setEditing(true)}
-          title={disabled ? 'Stop timer to edit' : 'Click to type a value'}
-          style={{
-            minWidth: 38, textAlign: 'center', background: 'none', border: 'none',
-            color: disabled ? 'var(--text-muted)' : color,
-            fontWeight: 800, fontSize: 16, cursor: disabled ? 'default' : 'text',
-            padding: '0 2px',
-          }}
-        >
+        <button disabled={disabled} onClick={() => !disabled && setEditing(true)} title={disabled ? 'Stop timer to edit' : 'Click to type'}
+          style={{ minWidth: 38, textAlign: 'center', background: 'none', border: 'none', color: disabled ? 'var(--text-muted)' : color,
+            fontWeight: 800, fontSize: 16, cursor: disabled ? 'default' : 'text', padding: '0 2px' }}>
           {value}
         </button>
       )}
-
       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>min</span>
-
-      <button
-        disabled={disabled || value >= max}
-        onClick={() => onChange(Math.min(max, value + 1))}
-        style={{
-          width: 22, height: 22, borderRadius: 6, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-          background: disabled ? 'transparent' : 'var(--bg-elevated)',
-          color: disabled ? 'var(--border)' : 'var(--text-secondary)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}
-      ><Plus size={11} /></button>
+      <button disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + 1))}
+        style={{ width: 22, height: 22, borderRadius: 6, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+          background: disabled ? 'transparent' : 'var(--bg-elevated)', color: disabled ? 'var(--border)' : 'var(--text-secondary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Plus size={11} />
+      </button>
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 export default function FocusMode() {
-  const { addXP, streakDays } = useStore()
+  const { addXP, addFocusSession, focusSessions } = useStore()
 
   const restored = loadSession()
 
-  const [mode, setMode]         = useState(restored?.mode ?? 0)
-  const [isWork, setIsWork]     = useState(restored?.isWork ?? true)
-  const [running, setRunning]   = useState(!!restored)
-  const [resumed, setResumed]   = useState(!!restored)
+  const [mode,    setMode]    = useState(restored?.mode    ?? 0)
+  const [isWork,  setIsWork]  = useState(restored?.isWork  ?? true)
+  const [running, setRunning] = useState(!!restored)
+  const [resumed, setResumed] = useState(!!restored)
+  const [subject, setSubject] = useState<Subject | 'General'>((restored?.subject as any) ?? 'General')
 
-  // ── Customisable durations (persist across browser close) ─────────────────
   const [workMin, setWorkMinRaw] = useState(restored?.workMin ?? PRESETS[0].work)
   const [brkMin,  setBrkMinRaw]  = useState(restored?.brkMin  ?? PRESETS[0].break)
+  const [seconds, setSeconds]    = useState(restored?.seconds ?? PRESETS[0].work * 60)
 
-  const [seconds, setSeconds]   = useState(restored?.seconds ?? workMin * 60)
+  const [completedPomodoros, setCompletedPomodoros] = useState(0)
 
-  const [completedPomodoros, setCompletedPomodoros] = useState(6)
-  const [selectedAmbient,    setSelectedAmbient]    = useState<string | null>(null)
-  const [totalToday,         setTotalToday]         = useState(4.5)
-
-  const intervalRef  = useRef<number | null>(null)
-  const endTimeRef   = useRef<number>(restored ? Date.now() + (restored.seconds * 1000) : 0)
+  const intervalRef = useRef<number | null>(null)
+  const endTimeRef  = useRef<number>(restored ? Date.now() + restored.seconds * 1000 : 0)
 
   const currentPreset = PRESETS[mode]
   const totalSeconds  = (isWork ? workMin : brkMin) * 60
   const progress      = totalSeconds > 0 ? 1 - seconds / totalSeconds : 0
 
-  // ── When mode button changes, snap to that preset's defaults (if stopped) ─
+  // ── Today's stats from store ──────────────────────────────────────────────
+  const today    = new Date().toISOString().split('T')[0]
+  const todaySessions = focusSessions.filter(s => s.date === today)
+  const totalToday    = todaySessions.reduce((a, s) => a + s.duration / 60, 0)
+  const sessionCount  = todaySessions.length
+
+  const subjectTotals = SUBJECTS.map(s => ({
+    ...s,
+    minutes: todaySessions.filter(fs => fs.subject === s.value).reduce((a, fs) => a + fs.duration, 0),
+  }))
+
+  // ── Switch preset ─────────────────────────────────────────────────────────
   const switchMode = (i: number) => {
     if (running) return
-    setMode(i)
-    const p = PRESETS[i]
-    setWorkMinRaw(p.work)
-    setBrkMinRaw(p.break)
-    setIsWork(true)
-    setSeconds(p.work * 60)
-    endTimeRef.current = 0
+    setMode(i); const p = PRESETS[i]
+    setWorkMinRaw(p.work); setBrkMinRaw(p.break)
+    setIsWork(true); setSeconds(p.work * 60); endTimeRef.current = 0
   }
 
-  // ── Setters that also reset the timer display ─────────────────────────────
   const setWorkMin = (v: number) => {
-    setWorkMinRaw(v)
-    if (isWork) setSeconds(v * 60)
-    // Switch to Custom preset automatically when user edits a non-custom mode
-    if (mode < 3) setMode(3)
+    setWorkMinRaw(v); if (isWork) setSeconds(v * 60); if (mode < 3) setMode(3)
   }
   const setBrkMin = (v: number) => {
-    setBrkMinRaw(v)
-    if (!isWork) setSeconds(v * 60)
-    if (mode < 3) setMode(3)
+    setBrkMinRaw(v); if (!isWork) setSeconds(v * 60); if (mode < 3) setMode(3)
   }
 
   // ── Tick ─────────────────────────────────────────────────────────────────
   const tick = useCallback(() => {
     const remaining = Math.floor((endTimeRef.current - Date.now()) / 1000)
     if (remaining <= 0) {
-      clearInterval(intervalRef.current!)
-      clearSession()
-      setRunning(false)
+      clearInterval(intervalRef.current!); clearSession(); setRunning(false)
       if (isWork) {
-        setCompletedPomodoros(p => p + 1)
-        setTotalToday(t => +(t + workMin / 60).toFixed(1))
+        addFocusSession({ id: `fs-${Date.now()}`, date: today, subject, duration: workMin, mode: PRESETS[mode].label })
         addXP(workMin * 2)
+        setCompletedPomodoros(p => p + 1)
+        toast.success(`${workMin}m ${PRESETS[mode].label} session complete! Break time.`, { duration: 3000 })
         setIsWork(false)
         const brkSecs = brkMin * 60
-        setSeconds(brkSecs)
-        endTimeRef.current = Date.now() + brkSecs * 1000
-        intervalRef.current = window.setInterval(tick, 500)
-        setRunning(true)
-        saveSession(endTimeRef.current, mode, false, workMin, brkMin)
+        setSeconds(brkSecs); endTimeRef.current = Date.now() + brkSecs * 1000
+        intervalRef.current = window.setInterval(tick, 500); setRunning(true)
+        saveSession(endTimeRef.current, mode, false, workMin, brkMin, subject)
       } else {
-        setIsWork(true)
-        setSeconds(workMin * 60)
+        toast('Break over — ready for the next session!', { icon: '⚡', duration: 2500 })
+        setIsWork(true); setSeconds(workMin * 60)
       }
-    } else {
-      setSeconds(remaining)
-    }
-  }, [isWork, mode, workMin, brkMin, addXP])
+    } else { setSeconds(remaining) }
+  }, [isWork, mode, workMin, brkMin, subject, today, addXP, addFocusSession])
 
   useEffect(() => {
     if (running) { intervalRef.current = window.setInterval(tick, 500) }
@@ -245,16 +200,14 @@ export default function FocusMode() {
 
   const handleStart = () => {
     endTimeRef.current = Date.now() + seconds * 1000
-    saveSession(endTimeRef.current, mode, isWork, workMin, brkMin)
-    setRunning(true)
-    setResumed(false)
+    saveSession(endTimeRef.current, mode, isWork, workMin, brkMin, subject)
+    setRunning(true); setResumed(false)
   }
   const handlePause = () => { clearSession(); setRunning(false) }
   const handleReset = () => {
     clearSession(); setRunning(false); setIsWork(true); setResumed(false)
     setSeconds(workMin * 60); endTimeRef.current = 0
   }
-  const toggleRunning = () => running ? handlePause() : handleStart()
 
   const R = 90, C = 2 * Math.PI * R
   const dashOffset = C * (1 - progress)
@@ -262,86 +215,72 @@ export default function FocusMode() {
   return (
     <div style={{ padding: '24px 28px' }}>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <div className="section-title" style={{ marginBottom: 4 }}>FOCUS ENGINE</div>
             <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Focus Mode</h1>
           </div>
-          <img src="./logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
+          <img src="/logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
         </div>
 
         {/* Resumed banner */}
         <AnimatePresence>
           {resumed && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                borderRadius: 10, border: '1px solid var(--neon)', background: '#39ff1410',
-                marginBottom: 16, fontSize: 12, color: 'var(--neon)', fontWeight: 600,
-              }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--neon)', background: '#39ff1410', marginBottom: 16, fontSize: 12, color: 'var(--neon)', fontWeight: 600 }}>
               <Timer size={14} />
               Session restored — your timer kept running while you were away!
-              <button onClick={() => setResumed(false)}
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+              <button onClick={() => setResumed(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, alignItems: 'start' }}>
           {/* ── Left: Timer ── */}
           <div>
             {/* Preset selector */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {PRESETS.map((p, i) => (
-                <button key={p.label} onClick={() => switchMode(i)}
-                  disabled={running}
+                <button key={p.label} onClick={() => switchMode(i)} disabled={running}
                   style={{
-                    padding: '7px 14px', borderRadius: 8, border: 'none',
-                    cursor: running ? 'not-allowed' : 'pointer',
-                    fontWeight: 600, fontSize: 13,
-                    opacity: running && mode !== i ? 0.35 : 1,
+                    padding: '7px 14px', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
+                    fontWeight: 600, fontSize: 13, opacity: running && mode !== i ? 0.35 : 1,
                     background: mode === i ? p.color : 'var(--bg-elevated)',
-                    color: mode === i ? '#000' : 'var(--text-muted)',
-                    transition: 'all 0.15s',
+                    color: mode === i ? '#000' : 'var(--text-muted)', transition: 'all 0.15s',
                     display: 'flex', alignItems: 'center', gap: 5,
                   }}>
-                  {i === 3 && <Settings size={12} />}
-                  {p.label}
+                  {i === 3 && <Settings size={12} />}{p.label}
                 </button>
               ))}
             </div>
 
-            {/* ── Customizable time controls ── */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-              <div style={{ flex: 1 }}>
-                <TimeStepper
-                  label="Work"
-                  value={workMin}
-                  onChange={setWorkMin}
-                  min={1} max={180}
-                  disabled={running}
-                  color={currentPreset.color}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <TimeStepper
-                  label="Break"
-                  value={brkMin}
-                  onChange={setBrkMin}
-                  min={1} max={60}
-                  disabled={running}
-                  color="var(--blue)"
-                />
-              </div>
+            {/* Subject selector */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              {SUBJECTS.map(s => (
+                <button key={s.value} onClick={() => !running && setSubject(s.value)} disabled={running}
+                  style={{
+                    flex: 1, padding: '6px 0', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
+                    fontWeight: 600, fontSize: 11, transition: 'all 0.15s',
+                    background: subject === s.value ? s.color + '25' : 'var(--bg-elevated)',
+                    color: subject === s.value ? s.color : 'var(--text-muted)',
+                    outline: subject === s.value ? `1px solid ${s.color}50` : 'none',
+                    opacity: running && subject !== s.value ? 0.35 : 1,
+                  }}>
+                  {s.label}
+                </button>
+              ))}
             </div>
 
-            {!running && (
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', marginTop: -16, marginBottom: 20 }}>
-                Click the number to type, or use +/− to adjust · Changes are saved automatically
+            {/* Time steppers */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <div style={{ flex: 1 }}>
+                <TimeStepper label="Work" value={workMin} onChange={setWorkMin} min={1} max={180} disabled={running} color={currentPreset.color} />
               </div>
-            )}
+              <div style={{ flex: 1 }}>
+                <TimeStepper label="Break" value={brkMin} onChange={setBrkMin} min={1} max={60} disabled={running} color="var(--blue)" />
+              </div>
+            </div>
 
             {/* Phase pills */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
@@ -351,8 +290,7 @@ export default function FocusMode() {
                 border: isWork ? '1px solid var(--neon)' : '1px solid var(--border)',
                 color: isWork ? 'var(--neon)' : 'var(--text-muted)', fontSize: 13, fontWeight: 600,
               }} onClick={() => { if (!running) { setIsWork(true); setSeconds(workMin * 60) } }}>
-                <Zap size={14} style={{ display: 'inline', marginRight: 6 }} />
-                Work · {workMin}m
+                <Zap size={14} style={{ display: 'inline', marginRight: 6 }} />Work · {workMin}m
               </div>
               <div style={{
                 flex: 1, padding: '8px', textAlign: 'center', borderRadius: 8, cursor: 'pointer',
@@ -360,8 +298,7 @@ export default function FocusMode() {
                 border: !isWork ? '1px solid var(--blue)' : '1px solid var(--border)',
                 color: !isWork ? 'var(--blue)' : 'var(--text-muted)', fontSize: 13, fontWeight: 600,
               }} onClick={() => { if (!running) { setIsWork(false); setSeconds(brkMin * 60) } }}>
-                <Coffee size={14} style={{ display: 'inline', marginRight: 6 }} />
-                Break · {brkMin}m
+                <Coffee size={14} style={{ display: 'inline', marginRight: 6 }} />Break · {brkMin}m
               </div>
             </div>
 
@@ -376,8 +313,13 @@ export default function FocusMode() {
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   <div className="timer-display" style={{ color: currentPreset.color }}>{formatTime(seconds)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {isWork ? 'FOCUS' : 'BREAK'}
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{isWork ? 'FOCUS' : 'BREAK'}</div>
+                  {/* Subject badge */}
+                  <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700,
+                    color: SUBJECTS.find(s => s.value === subject)?.color ?? 'var(--text-muted)',
+                    background: (SUBJECTS.find(s => s.value === subject)?.color ?? 'var(--text-muted)') + '20',
+                    padding: '2px 8px', borderRadius: 999 }}>
+                    {subject}
                   </div>
                   {running && (
                     <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -395,27 +337,19 @@ export default function FocusMode() {
                 style={{ width: 48, height: 48, borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <RotateCcw size={18} />
               </button>
-              <button onClick={toggleRunning}
+              <button onClick={() => running ? handlePause() : handleStart()}
                 style={{
                   width: 72, height: 72, borderRadius: '50%', border: 'none', cursor: 'pointer',
                   background: running ? 'transparent' : currentPreset.color,
                   color: running ? currentPreset.color : '#000',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 900,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   outline: running ? `2px solid ${currentPreset.color}` : 'none',
                   boxShadow: running ? 'none' : `0 0 20px ${currentPreset.color}66`,
                   transition: 'all 0.2s',
                 }}>
                 {running ? <Pause size={28} /> : <Play size={28} fill={running ? 'none' : '#000'} />}
               </button>
-              <button className="btn-ghost"
-                onClick={() => setSelectedAmbient(selectedAmbient ? null : 'Deep Focus')}
-                style={{
-                  width: 48, height: 48, borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderColor: selectedAmbient ? currentPreset.color : undefined,
-                  color:       selectedAmbient ? currentPreset.color : undefined,
-                }}>
-                {selectedAmbient ? <Volume2 size={18} /> : <VolumeX size={18} />}
-              </button>
+              <div style={{ width: 48, height: 48 }} /> {/* spacer */}
             </div>
 
             {/* Pomodoro dots */}
@@ -430,17 +364,16 @@ export default function FocusMode() {
             </div>
           </div>
 
-          {/* ── Right: Sidebar ── */}
+          {/* ── Right sidebar ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Stats */}
+
+            {/* Today's focus stats */}
             <div className="card" style={{ padding: '16px' }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Today's Focus</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
                 {[
-                  { label: 'Hours',    value: totalToday + 'h',       color: 'var(--neon)' },
-                  { label: 'Sessions', value: completedPomodoros,     color: 'var(--blue)' },
-                  { label: 'Streak',   value: streakDays + 'd',       color: 'var(--amber)' },
-                  { label: 'Focus %',  value: '89%',                  color: 'var(--purple)' },
+                  { label: 'Hours',    value: totalToday > 0 ? totalToday.toFixed(1) + 'h' : '0h', color: 'var(--neon)' },
+                  { label: 'Sessions', value: sessionCount, color: 'var(--blue)' },
                 ].map(s => (
                   <div key={s.label} style={{ textAlign: 'center', padding: '8px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -448,46 +381,49 @@ export default function FocusMode() {
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Ambient sounds */}
-            <div className="card" style={{ padding: '16px' }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Ambient Sounds</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {AMBIENT.map(a => (
-                  <button key={a} onClick={() => setSelectedAmbient(a === selectedAmbient ? null : a)}
-                    style={{
-                      padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                      background: selectedAmbient === a ? '#39ff1415' : 'var(--bg-elevated)',
-                      color: selectedAmbient === a ? 'var(--neon)' : 'var(--text-secondary)',
-                      textAlign: 'left', fontSize: 12, fontWeight: 600,
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: selectedAmbient === a ? 'var(--neon)' : 'var(--border)', flexShrink: 0 }} />
-                    {a}
-                    {selectedAmbient === a && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>PLAYING</span>}
-                  </button>
+              {/* Per-subject breakdown */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}>BY SUBJECT</div>
+                {subjectTotals.map(s => (
+                  <div key={s.value} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>{s.label}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: s.minutes > 0 ? s.color : 'var(--text-muted)' }}>
+                      {s.minutes > 0 ? (s.minutes / 60).toFixed(1) + 'h' : '—'}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
 
-            {/* Session history */}
+            {/* Session history from store */}
             <div className="card" style={{ padding: '16px' }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Session History</div>
-              {sessionHistory.map((s, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  paddingBottom: 8, marginBottom: 8,
-                  borderBottom: i < sessionHistory.length - 1 ? '1px solid var(--border)' : 'none',
-                }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--neon)', flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600 }}>{s.subject}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.time} · {s.type}</div>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--neon)' }}>{s.duration}m</span>
+              {focusSessions.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
+                  No sessions recorded yet.<br />
+                  <span style={{ fontSize: 10 }}>Complete a focus session to see history.</span>
                 </div>
-              ))}
+              ) : (
+                focusSessions.slice(0, 8).map((s, i) => {
+                  const subColor = SUBJECTS.find(sub => sub.value === s.subject)?.color ?? 'var(--text-muted)'
+                  return (
+                    <div key={s.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      paddingBottom: 8, marginBottom: 8,
+                      borderBottom: i < Math.min(focusSessions.length, 8) - 1 ? '1px solid var(--border)' : 'none',
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: subColor, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600 }}>{s.subject}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.date} · {s.mode}</div>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: subColor }}>{s.duration}m</span>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>

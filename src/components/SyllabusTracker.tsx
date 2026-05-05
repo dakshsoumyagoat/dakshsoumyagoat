@@ -392,9 +392,9 @@ export default function SyllabusTracker() {
                 </span>
               </div>
               {filtered.filter(c => c.unit === unit).map(ch =>
-                activeGrade === 11
-                  ? <G11ChapterRow key={ch.id} chapter={ch} />
-                  : <G12ChapterRow key={ch.id} chapter={ch} />
+                ch.subtopics.length > 0
+                  ? <G12ChapterRow key={ch.id} chapter={ch} />
+                  : <G11ChapterRow key={ch.id} chapter={ch} />
               )}
             </div>
           ))}

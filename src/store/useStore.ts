@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 export type Subject = 'Physics' | 'Chemistry' | 'Mathematics'
 export type Difficulty = 'Easy' | 'Medium' | 'Hard'
@@ -31,6 +32,14 @@ export interface StudySession {
   duration: number
   type: 'Theory' | 'Practice' | 'Revision' | 'Mock'
   notes: string
+}
+
+export interface FocusSession {
+  id: string
+  date: string
+  subject: Subject | 'General'
+  duration: number
+  mode: string
 }
 
 export interface MockTest {
@@ -88,6 +97,8 @@ interface AppState {
   toggleSubtopic: (chapterId: string, subtopic: string) => void
   sessions: StudySession[]
   addSession: (session: StudySession) => void
+  focusSessions: FocusSession[]
+  addFocusSession: (s: FocusSession) => void
   mockTests: MockTest[]
   addMockTest: (test: MockTest) => void
   bookmarks: BookmarkedQuestion[]
@@ -106,11 +117,9 @@ interface AppState {
   streakDays: number
   xp: number
   addXP: (amount: number) => void
-  studyHoursToday: number
-  productivityScore: number
 }
 
-// ─── GRADE 11 CHAPTERS (no subtopics, random progress) ────────────────────────
+// ─── GRADE 11 CHAPTERS ────────────────────────────────────────────────────────
 const generateGrade11Chapters = (): Chapter[] => {
   const physicsChapters = [
     { unit: 'Mechanics', chapters: ['Kinematics', 'Laws of Motion', 'Work Energy Power', 'Rotational Motion', 'Gravitation', 'Properties of Matter'] },
@@ -143,22 +152,10 @@ const generateGrade11Chapters = (): Chapter[] => {
     units.forEach(u => {
       u.chapters.forEach(name => {
         chapters.push({
-          id: `g11-${idx++}`,
-          subject: sub,
-          unit: u.unit,
-          name,
-          grade: 11,
-          theory: 0,
-          pyqs: 0,
-          mockAccuracy: 0,
-          revisionCount: 0,
-          confidence: 0,
-          mastery: 'Not Started',
-          lastStudied: null,
-          nextRevision: null,
-          difficulty: 'Medium',
-          subtopics: [],
-          completedSubtopics: [],
+          id: `g11-${idx++}`, subject: sub, unit: u.unit, name, grade: 11,
+          theory: 0, pyqs: 0, mockAccuracy: 0, revisionCount: 0, confidence: 0,
+          mastery: 'Not Started', lastStudied: null, nextRevision: null,
+          difficulty: 'Medium', subtopics: [], completedSubtopics: [],
         })
       })
     })
@@ -166,200 +163,62 @@ const generateGrade11Chapters = (): Chapter[] => {
   return chapters
 }
 
-// ─── GRADE 12 CHAPTERS (with L1, L2... subtopics) ─────────────────────────────
-interface G12ChapterDef {
-  unit: string
-  name: string
-  difficulty: Difficulty
-  subtopics: string[]
-}
-
-const GRADE12_PHYSICS: G12ChapterDef[] = [
-  {
-    unit: 'Electrostatics', name: 'Electric Charges & Fields', difficulty: 'Medium',
-    subtopics: ['L1: Electric Charges & Conservation of Charge', 'L2: Coulomb\'s Law & Superposition', 'L3: Electric Field & Field Lines', 'L4: Electric Flux & Gauss\'s Theorem', 'L5: Applications of Gauss\'s Law (Sphere, Cylinder, Plane)', 'L6: Electric Dipole & Field due to Dipole'],
-  },
-  {
-    unit: 'Electrostatics', name: 'Electrostatic Potential & Capacitance', difficulty: 'Hard',
-    subtopics: ['L1: Electric Potential & Potential Difference', 'L2: Potential due to Point Charge & Dipole', 'L3: Equipotential Surfaces', 'L4: Capacitors & Capacitance', 'L5: Parallel Plate Capacitor', 'L6: Dielectrics & Polarisation', 'L7: Energy Stored in a Capacitor', 'L8: Combination of Capacitors', 'L9: Van de Graaff Generator'],
-  },
-  {
-    unit: 'Current Electricity', name: 'Current Electricity', difficulty: 'Medium',
-    subtopics: ['L1: Electric Current & Drift Velocity', 'L2: Ohm\'s Law & Resistance', 'L3: Resistivity & Conductivity', 'L4: Temperature Dependence of Resistance', 'L5: Electrical Energy & Power', 'L6: Kirchhoff\'s Laws (KCL & KVL)', 'L7: Wheatstone Bridge & Meter Bridge', 'L8: Potentiometer & Its Applications', 'L9: Internal Resistance of a Cell & Cells in Combination'],
-  },
-  {
-    unit: 'Magnetism', name: 'Moving Charges & Magnetism', difficulty: 'Hard',
-    subtopics: ['L1: Biot-Savart Law & Applications', 'L2: Ampere\'s Circuital Law', 'L3: Force on a Moving Charge (Lorentz Force)', 'L4: Motion of Charged Particle in Magnetic Field', 'L5: Force on Current-Carrying Conductor', 'L6: Force between Parallel Conductors & Definition of Ampere', 'L7: Torque on Current Loop & Magnetic Dipole', 'L8: Moving Coil Galvanometer, Ammeter & Voltmeter'],
-  },
-  {
-    unit: 'Magnetism', name: 'Magnetism & Matter', difficulty: 'Easy',
-    subtopics: ['L1: Bar Magnet as Magnetic Dipole & Field Lines', 'L2: Earth\'s Magnetic Field & Magnetic Elements', 'L3: Dia-, Para- & Ferromagnetic Materials', 'L4: Hysteresis & Permanent Magnets'],
-  },
-  {
-    unit: 'Electromagnetic Induction', name: 'Electromagnetic Induction', difficulty: 'Hard',
-    subtopics: ['L1: Magnetic Flux & Faraday\'s Laws', 'L2: Lenz\'s Law & Conservation of Energy', 'L3: Motional EMF', 'L4: Self-Inductance & Inductors', 'L5: Mutual Inductance', 'L6: AC Generator'],
-  },
-  {
-    unit: 'Electromagnetic Induction', name: 'Alternating Current', difficulty: 'Hard',
-    subtopics: ['L1: AC Voltage & RMS Values', 'L2: AC through Resistor, Inductor & Capacitor', 'L3: LCR Series Circuit & Phasor Diagram', 'L4: Resonance in LCR Circuit', 'L5: Power in AC Circuit & Power Factor', 'L6: LC Oscillations', 'L7: Transformers'],
-  },
-  {
-    unit: 'Electromagnetic Waves', name: 'Electromagnetic Waves', difficulty: 'Easy',
-    subtopics: ['L1: Displacement Current & Maxwell\'s Equations', 'L2: Electromagnetic Waves & Their Properties', 'L3: Electromagnetic Spectrum (Radio → Gamma)'],
-  },
-  {
-    unit: 'Optics', name: 'Ray Optics & Optical Instruments', difficulty: 'Medium',
-    subtopics: ['L1: Reflection at Spherical Mirrors & Mirror Formula', 'L2: Refraction at Plane Surfaces & Snell\'s Law', 'L3: Total Internal Reflection & Optical Fibre', 'L4: Refraction at Spherical Surfaces & Lens Formula', 'L5: Power of Lens & Lens Maker\'s Formula', 'L6: Prism & Dispersion of Light', 'L7: Scattering of Light', 'L8: Human Eye & Defects of Vision', 'L9: Microscope (Simple & Compound)', 'L10: Telescope (Refracting & Reflecting)'],
-  },
-  {
-    unit: 'Optics', name: 'Wave Optics', difficulty: 'Hard',
-    subtopics: ['L1: Huygens\' Principle & Refraction/Reflection', 'L2: Coherent Sources & Interference', 'L3: Young\'s Double Slit Experiment (YDSE)', 'L4: Fringe Width & Conditions', 'L5: Diffraction at Single Slit', 'L6: Resolving Power of Optical Instruments', 'L7: Polarisation & Malus\' Law'],
-  },
-  {
-    unit: 'Modern Physics', name: 'Dual Nature of Radiation & Matter', difficulty: 'Medium',
-    subtopics: ['L1: Photoelectric Effect & Experimental Setup', 'L2: Einstein\'s Photoelectric Equation', 'L3: Threshold Frequency & Work Function', 'L4: De Broglie Wavelength & Matter Waves', 'L5: Davisson-Germer Experiment'],
-  },
-  {
-    unit: 'Modern Physics', name: 'Atoms', difficulty: 'Medium',
-    subtopics: ['L1: Alpha Particle Scattering & Rutherford\'s Model', 'L2: Bohr\'s Model & Postulates', 'L3: Energy Levels & Hydrogen Spectrum', 'L4: Spectral Series (Lyman, Balmer, Paschen)'],
-  },
-  {
-    unit: 'Modern Physics', name: 'Nuclei', difficulty: 'Medium',
-    subtopics: ['L1: Composition of Nucleus & Nuclear Forces', 'L2: Mass Defect & Binding Energy', 'L3: Radioactivity: Alpha, Beta & Gamma Decay', 'L4: Half-Life & Radioactive Decay Law', 'L5: Nuclear Fission & Chain Reaction', 'L6: Nuclear Fusion & Nuclear Reactor'],
-  },
-  {
-    unit: 'Modern Physics', name: 'Semiconductor Devices', difficulty: 'Medium',
-    subtopics: ['L1: Energy Bands in Solids (Conductor, Insulator, Semiconductor)', 'L2: Intrinsic & Extrinsic Semiconductors (n-type, p-type)', 'L3: p-n Junction Diode & I-V Characteristics', 'L4: Rectifiers (Half-Wave & Full-Wave)', 'L5: Zener Diode & Voltage Regulation', 'L6: Junction Transistor (NPN & PNP)', 'L7: Transistor as Amplifier & Oscillator', 'L8: Logic Gates (AND, OR, NOT, NAND, NOR, XOR)'],
-  },
-]
-
-const GRADE12_CHEMISTRY: G12ChapterDef[] = [
-  {
-    unit: 'Physical Chemistry', name: 'Solid State', difficulty: 'Medium',
-    subtopics: ['L1: Types of Solids (Ionic, Molecular, Covalent, Metallic)', 'L2: Crystal Lattice & Unit Cell (SC, BCC, FCC)', 'L3: Packing in Solids & Packing Efficiency', 'L4: Density of Unit Cell', 'L5: Point Defects (Frenkel & Schottky)', 'L6: Electrical & Magnetic Properties of Solids'],
-  },
-  {
-    unit: 'Physical Chemistry', name: 'Solutions', difficulty: 'Medium',
-    subtopics: ['L1: Types of Solutions & Concentration Terms (Molarity, Molality, Mole Fraction)', 'L2: Vapour Pressure of Solutions & Raoult\'s Law', 'L3: Ideal & Non-Ideal Solutions, Azeotropes', 'L4: Elevation of Boiling Point (ΔTb)', 'L5: Depression in Freezing Point (ΔTf)', 'L6: Osmotic Pressure & Osmosis', 'L7: Van\'t Hoff Factor & Abnormal Molecular Mass'],
-  },
-  {
-    unit: 'Physical Chemistry', name: 'Electrochemistry', difficulty: 'Hard',
-    subtopics: ['L1: Electrochemical Cells & Electrode Potentials', 'L2: Standard Electrode Potential & EMF of Cell', 'L3: Nernst Equation & Its Applications', 'L4: Relationship between ΔG, EMF & Equilibrium Constant', 'L5: Electrolysis & Faraday\'s Laws of Electrolysis', 'L6: Electrolytic Conductance & Kohlrausch\'s Law', 'L7: Batteries (Primary & Secondary)', 'L8: Fuel Cells & Corrosion'],
-  },
-  {
-    unit: 'Physical Chemistry', name: 'Chemical Kinetics', difficulty: 'Hard',
-    subtopics: ['L1: Rate of Reaction & Rate Law Expression', 'L2: Order & Molecularity of Reactions', 'L3: Integrated Rate Law (Zero & First Order)', 'L4: Half-Life of Reactions', 'L5: Arrhenius Equation & Activation Energy', 'L6: Collision Theory of Chemical Reactions'],
-  },
-  {
-    unit: 'Physical Chemistry', name: 'Surface Chemistry', difficulty: 'Easy',
-    subtopics: ['L1: Adsorption vs Absorption & Freundlich Isotherm', 'L2: Catalysis (Homogeneous, Heterogeneous & Enzyme)', 'L3: Colloids: Classification & Properties', 'L4: Emulsions & Tyndall Effect', 'L5: Coagulation of Colloids'],
-  },
-  {
-    unit: 'Inorganic Chemistry', name: 'General Principles of Isolation of Elements', difficulty: 'Easy',
-    subtopics: ['L1: Occurrence of Metals & Concentration Methods', 'L2: Thermodynamic Principles (Ellingham Diagram)', 'L3: Electrochemical Principles of Metallurgy', 'L4: Refining Methods (Distillation, Zone Refining, etc.)'],
-  },
-  {
-    unit: 'Inorganic Chemistry', name: 'p-Block Elements (Group 15, 16, 17, 18)', difficulty: 'Hard',
-    subtopics: ['L1: Group 15 — Nitrogen Family: Properties & Trends', 'L2: Ammonia (NH3) — Structure, Preparation & Uses', 'L3: Nitric Acid (HNO3) — Preparation & Properties', 'L4: Group 16 — Oxygen Family: Properties & Trends', 'L5: Sulphur Dioxide (SO2) & Sulphur Trioxide (SO3)', 'L6: Sulphuric Acid (H2SO4) — Contact Process & Uses', 'L7: Group 17 — Halogens: Properties & Trends', 'L8: Hydrogen Chloride (HCl) & Interhalogen Compounds', 'L9: Group 18 — Noble Gases: Properties & Uses'],
-  },
-  {
-    unit: 'Inorganic Chemistry', name: 'd & f-Block Elements', difficulty: 'Medium',
-    subtopics: ['L1: Transition Metals: Electronic Configuration & General Properties', 'L2: Variation of Properties (Ionisation Energy, Oxidation States, Colour)', 'L3: KMnO4 — Properties & Uses', 'L4: K2Cr2O7 — Properties & Uses', 'L5: Lanthanoids: Properties & Lanthanoid Contraction', 'L6: Actinoids: Properties & Comparison with Lanthanoids'],
-  },
-  {
-    unit: 'Inorganic Chemistry', name: 'Coordination Compounds', difficulty: 'Hard',
-    subtopics: ['L1: Coordination Entities: Ligands & Central Metal', 'L2: IUPAC Nomenclature of Coordination Compounds', 'L3: Werner\'s Theory & Effective Atomic Number', 'L4: Valence Bond Theory (VBT)', 'L5: Crystal Field Theory (CFT) & CFSE', 'L6: Isomerism (Structural & Stereoisomerism)', 'L7: Stability of Coordination Compounds', 'L8: Importance in Biological & Industrial Applications'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Haloalkanes & Haloarenes', difficulty: 'Medium',
-    subtopics: ['L1: Nomenclature & Nature of C-X Bond', 'L2: Methods of Preparation of Haloalkanes', 'L3: Physical Properties of Haloalkanes', 'L4: SN1 & SN2 Mechanisms', 'L5: E1 & E2 Elimination Reactions', 'L6: Haloarenes: Preparation & Properties', 'L7: Polyhalogen Compounds & Uses (DDT, BHC)'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Alcohols, Phenols & Ethers', difficulty: 'Medium',
-    subtopics: ['L1: Nomenclature & Classification of Alcohols', 'L2: Methods of Preparation of Alcohols', 'L3: Physical & Chemical Properties of Alcohols', 'L4: Reactions of Alcohols (Esterification, Oxidation, Dehydration)', 'L5: Phenols: Preparation & Properties', 'L6: Chemical Reactions of Phenols (Electrophilic Substitution)', 'L7: Ethers: Preparation, Properties & Reactions'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Aldehydes, Ketones & Carboxylic Acids', difficulty: 'Hard',
-    subtopics: ['L1: Nomenclature & Structure of Carbonyl Compounds', 'L2: Methods of Preparation of Aldehydes & Ketones', 'L3: Nucleophilic Addition Reactions', 'L4: Aldol Condensation & Cannizzaro Reaction', 'L5: Clemmensen & Wolff-Kishner Reduction', 'L6: Oxidation Reactions of Aldehydes', 'L7: Carboxylic Acids: Nomenclature & Preparation', 'L8: Properties & Reactions of Carboxylic Acids', 'L9: Acid Derivatives (Anhydride, Ester, Amide)'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Amines', difficulty: 'Medium',
-    subtopics: ['L1: Nomenclature & Classification of Amines', 'L2: Methods of Preparation of Amines', 'L3: Physical & Chemical Properties of Amines', 'L4: Diazonium Salts & Coupling Reactions', 'L5: Cyanides & Isocyanides'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Biomolecules', difficulty: 'Easy',
-    subtopics: ['L1: Carbohydrates: Monosaccharides (Glucose, Fructose)', 'L2: Disaccharides & Polysaccharides', 'L3: Proteins & Amino Acids: Structure', 'L4: Peptide Bond & Structure of Proteins', 'L5: Enzymes & Their Functions', 'L6: Nucleic Acids: DNA & RNA Structure', 'L7: Vitamins & Hormones'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Polymers', difficulty: 'Easy',
-    subtopics: ['L1: Classification of Polymers (Addition, Condensation, Copolymer)', 'L2: Natural Rubber & Vulcanisation', 'L3: Synthetic Fibres (Nylon, Dacron, Orlon)', 'L4: Thermoplastics & Thermosetting Polymers', 'L5: Biodegradable & Non-Biodegradable Polymers'],
-  },
-  {
-    unit: 'Organic Chemistry', name: 'Chemistry in Everyday Life', difficulty: 'Easy',
-    subtopics: ['L1: Drugs & Medicines: Drug-Receptor Interaction', 'L2: Analgesics, Tranquilisers & Antibiotics', 'L3: Antacids, Antihistamines & Antiseptics', 'L4: Food Additives (Antioxidants, Preservatives, Artificial Sweeteners)', 'L5: Cleansing Agents: Soaps & Detergents'],
-  },
-]
-
-const GRADE12_MATHS: G12ChapterDef[] = [
-  {
-    unit: 'Algebra', name: 'Relations & Functions', difficulty: 'Easy',
-    subtopics: ['L1: Types of Relations (Reflexive, Symmetric, Transitive, Equivalence)', 'L2: Types of Functions (One-One, Onto, Bijective)', 'L3: Composition of Functions', 'L4: Invertible Functions & Inverse', 'L5: Binary Operations'],
-  },
-  {
-    unit: 'Algebra', name: 'Inverse Trigonometric Functions', difficulty: 'Medium',
-    subtopics: ['L1: Domain, Range & Principal Values', 'L2: Properties of Inverse Trig Functions', 'L3: Simplification using Identities', 'L4: Equations involving Inverse Trig Functions'],
-  },
-  {
-    unit: 'Algebra', name: 'Matrices', difficulty: 'Easy',
-    subtopics: ['L1: Types of Matrices & Basic Operations', 'L2: Multiplication of Matrices', 'L3: Transpose, Symmetric & Skew-Symmetric Matrices', 'L4: Adjoint & Inverse of a Matrix', 'L5: Elementary Row & Column Operations'],
-  },
-  {
-    unit: 'Algebra', name: 'Determinants', difficulty: 'Medium',
-    subtopics: ['L1: Determinant of a 2×2 & 3×3 Matrix', 'L2: Properties of Determinants', 'L3: Expansion along Row/Column & Cofactors', 'L4: Area of Triangle using Determinants', 'L5: Adjoint & Inverse using Determinants', 'L6: Solution of System of Linear Equations (Cramer\'s Rule)'],
-  },
-  {
-    unit: 'Calculus', name: 'Continuity & Differentiability', difficulty: 'Hard',
-    subtopics: ['L1: Continuity of Functions at a Point & on an Interval', 'L2: Differentiability & Relation to Continuity', 'L3: Derivatives of Composite Functions (Chain Rule)', 'L4: Derivatives of Implicit Functions', 'L5: Logarithmic Differentiation', 'L6: Parametric Differentiation', 'L7: Derivatives of Exponential & Logarithmic Functions', 'L8: Second Order Derivatives', 'L9: Rolle\'s Theorem & Mean Value Theorem'],
-  },
-  {
-    unit: 'Calculus', name: 'Applications of Derivatives', difficulty: 'Hard',
-    subtopics: ['L1: Rate of Change of Quantities', 'L2: Increasing & Decreasing Functions', 'L3: Tangents & Normals to Curves', 'L4: Approximations using Derivatives', 'L5: Maxima & Minima (First Derivative Test)', 'L6: Maxima & Minima (Second Derivative Test)', 'L7: Absolute Maxima & Minima on a Closed Interval'],
-  },
-  {
-    unit: 'Calculus', name: 'Integrals', difficulty: 'Hard',
-    subtopics: ['L1: Integration as Reverse of Differentiation', 'L2: Integration by Substitution', 'L3: Integration using Trigonometric Identities', 'L4: Partial Fractions', 'L5: Integration by Parts', 'L6: Special Integrals (√(a²-x²), √(x²±a²))', 'L7: Definite Integrals & Fundamental Theorem', 'L8: Properties of Definite Integrals (King Property, etc.)'],
-  },
-  {
-    unit: 'Calculus', name: 'Applications of Integrals', difficulty: 'Medium',
-    subtopics: ['L1: Area under a Curve (Definite Integral Method)', 'L2: Area between Two Curves', 'L3: Area of Standard Curves (Parabola, Circle, Ellipse)'],
-  },
-  {
-    unit: 'Calculus', name: 'Differential Equations', difficulty: 'Hard',
-    subtopics: ['L1: Order & Degree of a Differential Equation', 'L2: General & Particular Solutions', 'L3: Variable Separable Method', 'L4: Homogeneous Differential Equations', 'L5: Linear Differential Equations (Integrating Factor Method)', 'L6: Applications (Growth & Decay, Newton\'s Cooling Law)'],
-  },
-  {
-    unit: 'Vectors & 3D', name: 'Vectors', difficulty: 'Medium',
-    subtopics: ['L1: Types of Vectors & Algebra (Addition, Subtraction)', 'L2: Position Vector & Section Formula', 'L3: Dot Product (Scalar Product) & Applications', 'L4: Cross Product (Vector Product) & Applications', 'L5: Scalar Triple Product & Volume of Parallelepiped', 'L6: Vector Triple Product'],
-  },
-  {
-    unit: 'Vectors & 3D', name: 'Three Dimensional Geometry', difficulty: 'Hard',
-    subtopics: ['L1: Direction Cosines & Direction Ratios', 'L2: Equation of a Line in Space (Vector & Cartesian)', 'L3: Angle between Two Lines & Skew Lines', 'L4: Shortest Distance between Two Skew Lines', 'L5: Equation of a Plane (Vector & Cartesian)', 'L6: Angle between Two Planes & Line-Plane', 'L7: Distance of a Point from a Plane', 'L8: Angle between Line and Plane'],
-  },
-  {
-    unit: 'Linear Programming', name: 'Linear Programming', difficulty: 'Easy',
-    subtopics: ['L1: Introduction to LPP & Terminology', 'L2: Formulation of Linear Programming Problem', 'L3: Graphical Method (Feasible Region)', 'L4: Corner Point Method & Optimal Solution', 'L5: Different Types of LPP (Bounded & Unbounded)'],
-  },
-  {
-    unit: 'Probability', name: 'Probability (Advanced)', difficulty: 'Hard',
-    subtopics: ['L1: Conditional Probability & Multiplication Theorem', 'L2: Independent Events', 'L3: Bayes\' Theorem & Applications', 'L4: Random Variables & Probability Distribution', 'L5: Mean & Variance of Random Variables', 'L6: Bernoulli Trials & Binomial Distribution'],
-  },
-]
-
+// ─── GRADE 12 CHAPTERS (no subtopics — user fills own notes) ─────────────────
 const buildGrade12Chapters = (): Chapter[] => {
-  const all: { sub: Subject; defs: G12ChapterDef[] }[] = [
-    { sub: 'Physics', defs: GRADE12_PHYSICS },
-    { sub: 'Chemistry', defs: GRADE12_CHEMISTRY },
-    { sub: 'Mathematics', defs: GRADE12_MATHS },
+  const PHYSICS: { unit: string; name: string; difficulty: Difficulty }[] = [
+    { unit: 'Electrostatics', name: 'Electric Charges & Fields', difficulty: 'Medium' },
+    { unit: 'Electrostatics', name: 'Electrostatic Potential & Capacitance', difficulty: 'Hard' },
+    { unit: 'Current Electricity', name: 'Current Electricity', difficulty: 'Medium' },
+    { unit: 'Magnetism', name: 'Moving Charges & Magnetism', difficulty: 'Hard' },
+    { unit: 'Magnetism', name: 'Magnetism & Matter', difficulty: 'Easy' },
+    { unit: 'Electromagnetic Induction', name: 'Electromagnetic Induction', difficulty: 'Hard' },
+    { unit: 'Electromagnetic Induction', name: 'Alternating Current', difficulty: 'Hard' },
+    { unit: 'Electromagnetic Waves', name: 'Electromagnetic Waves', difficulty: 'Easy' },
+    { unit: 'Optics', name: 'Ray Optics & Optical Instruments', difficulty: 'Medium' },
+    { unit: 'Optics', name: 'Wave Optics', difficulty: 'Hard' },
+    { unit: 'Modern Physics', name: 'Dual Nature of Radiation & Matter', difficulty: 'Medium' },
+    { unit: 'Modern Physics', name: 'Atoms', difficulty: 'Medium' },
+    { unit: 'Modern Physics', name: 'Nuclei', difficulty: 'Medium' },
+    { unit: 'Modern Physics', name: 'Semiconductor Devices', difficulty: 'Medium' },
+  ]
+  const CHEMISTRY: { unit: string; name: string; difficulty: Difficulty }[] = [
+    { unit: 'Physical Chemistry', name: 'Solid State', difficulty: 'Medium' },
+    { unit: 'Physical Chemistry', name: 'Solutions', difficulty: 'Medium' },
+    { unit: 'Physical Chemistry', name: 'Electrochemistry', difficulty: 'Hard' },
+    { unit: 'Physical Chemistry', name: 'Chemical Kinetics', difficulty: 'Hard' },
+    { unit: 'Physical Chemistry', name: 'Surface Chemistry', difficulty: 'Easy' },
+    { unit: 'Inorganic Chemistry', name: 'General Principles of Isolation of Elements', difficulty: 'Easy' },
+    { unit: 'Inorganic Chemistry', name: 'p-Block Elements (Group 15, 16, 17, 18)', difficulty: 'Hard' },
+    { unit: 'Inorganic Chemistry', name: 'd & f-Block Elements', difficulty: 'Medium' },
+    { unit: 'Inorganic Chemistry', name: 'Coordination Compounds', difficulty: 'Hard' },
+    { unit: 'Organic Chemistry', name: 'Haloalkanes & Haloarenes', difficulty: 'Medium' },
+    { unit: 'Organic Chemistry', name: 'Alcohols, Phenols & Ethers', difficulty: 'Medium' },
+    { unit: 'Organic Chemistry', name: 'Aldehydes, Ketones & Carboxylic Acids', difficulty: 'Hard' },
+    { unit: 'Organic Chemistry', name: 'Amines', difficulty: 'Medium' },
+    { unit: 'Organic Chemistry', name: 'Biomolecules', difficulty: 'Easy' },
+    { unit: 'Organic Chemistry', name: 'Polymers', difficulty: 'Easy' },
+    { unit: 'Organic Chemistry', name: 'Chemistry in Everyday Life', difficulty: 'Easy' },
+  ]
+  const MATHS: { unit: string; name: string; difficulty: Difficulty }[] = [
+    { unit: 'Algebra', name: 'Relations & Functions', difficulty: 'Easy' },
+    { unit: 'Algebra', name: 'Inverse Trigonometric Functions', difficulty: 'Medium' },
+    { unit: 'Algebra', name: 'Matrices', difficulty: 'Easy' },
+    { unit: 'Algebra', name: 'Determinants', difficulty: 'Medium' },
+    { unit: 'Calculus', name: 'Continuity & Differentiability', difficulty: 'Hard' },
+    { unit: 'Calculus', name: 'Applications of Derivatives', difficulty: 'Hard' },
+    { unit: 'Calculus', name: 'Integrals', difficulty: 'Hard' },
+    { unit: 'Calculus', name: 'Applications of Integrals', difficulty: 'Medium' },
+    { unit: 'Calculus', name: 'Differential Equations', difficulty: 'Hard' },
+    { unit: 'Vectors & 3D', name: 'Vectors', difficulty: 'Medium' },
+    { unit: 'Vectors & 3D', name: 'Three Dimensional Geometry', difficulty: 'Hard' },
+    { unit: 'Linear Programming', name: 'Linear Programming', difficulty: 'Easy' },
+    { unit: 'Probability', name: 'Probability (Advanced)', difficulty: 'Hard' },
+  ]
+
+  const all: { sub: Subject; defs: { unit: string; name: string; difficulty: Difficulty }[] }[] = [
+    { sub: 'Physics', defs: PHYSICS },
+    { sub: 'Chemistry', defs: CHEMISTRY },
+    { sub: 'Mathematics', defs: MATHS },
   ]
 
   const chapters: Chapter[] = []
@@ -367,67 +226,85 @@ const buildGrade12Chapters = (): Chapter[] => {
   all.forEach(({ sub, defs }) => {
     defs.forEach(def => {
       chapters.push({
-        id: `g12-${idx++}`,
-        subject: sub,
-        unit: def.unit,
-        name: def.name,
-        grade: 12,
-        theory: 0,
-        pyqs: 0,
-        mockAccuracy: 0,
-        revisionCount: 0,
-        confidence: 0,
-        mastery: 'Not Started',
-        lastStudied: null,
-        nextRevision: null,
-        difficulty: def.difficulty,
-        subtopics: def.subtopics,
-        completedSubtopics: [],
+        id: `g12-${idx++}`, subject: sub, unit: def.unit, name: def.name, grade: 12,
+        theory: 0, pyqs: 0, mockAccuracy: 0, revisionCount: 0, confidence: 0,
+        mastery: 'Not Started', lastStudied: null, nextRevision: null,
+        difficulty: def.difficulty, subtopics: [], completedSubtopics: [],
       })
     })
   })
   return chapters
 }
 
+export const useStore = create<AppState>()(
+  persist(
+    (set) => ({
+      activeView: 'dashboard',
+      setActiveView: (view) => set({ activeView: view }),
 
+      chapters: [...generateGrade11Chapters(), ...buildGrade12Chapters()],
+      updateChapter: (id, updates) => set((s) => ({
+        chapters: s.chapters.map(c => c.id === id ? { ...c, ...updates } : c),
+      })),
+      toggleSubtopic: (chapterId, subtopic) => set((s) => ({
+        chapters: s.chapters.map(c => {
+          if (c.id !== chapterId) return c
+          const completed = c.completedSubtopics.includes(subtopic)
+            ? c.completedSubtopics.filter(st => st !== subtopic)
+            : [...c.completedSubtopics, subtopic]
+          const pct = c.subtopics.length > 0 ? Math.round((completed.length / c.subtopics.length) * 100) : 0
+          return { ...c, completedSubtopics: completed, theory: pct }
+        }),
+      })),
 
-export const useStore = create<AppState>((set) => ({
-  activeView: 'dashboard',
-  setActiveView: (view) => set({ activeView: view }),
-  chapters: [...generateGrade11Chapters(), ...buildGrade12Chapters()],
-  updateChapter: (id, updates) => set((s) => ({
-    chapters: s.chapters.map(c => c.id === id ? { ...c, ...updates } : c)
-  })),
-  toggleSubtopic: (chapterId, subtopic) => set((s) => ({
-    chapters: s.chapters.map(c => {
-      if (c.id !== chapterId) return c
-      const completed = c.completedSubtopics.includes(subtopic)
-        ? c.completedSubtopics.filter(st => st !== subtopic)
-        : [...c.completedSubtopics, subtopic]
-      const pct = c.subtopics.length > 0 ? Math.round((completed.length / c.subtopics.length) * 100) : 0
-      return { ...c, completedSubtopics: completed, theory: pct }
-    })
-  })),
-  sessions: [],
-  addSession: (session) => set((s) => ({ sessions: [session, ...s.sessions] })),
-  mockTests: [],
-  addMockTest: (test) => set((s) => ({ mockTests: [...s.mockTests, test] })),
-  bookmarks: [],
-  addBookmark: (q) => set((s) => ({ bookmarks: [q, ...s.bookmarks] })),
-  removeBookmark: (id) => set((s) => ({ bookmarks: s.bookmarks.filter(b => b.id !== id) })),
-  updateBookmark: (id, updates) => set((s) => ({ bookmarks: s.bookmarks.map(b => b.id === id ? { ...b, ...updates } : b) })),
-  tasks: [],
-  addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
-  toggleTask: (id) => set((s) => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })),
-  formulas: [],
-  addFormula: (f) => set((s) => ({ formulas: [f, ...s.formulas] })),
-  updateFormula: (id, updates) => set((s) => ({ formulas: s.formulas.map(f => f.id === id ? { ...f, ...updates } : f) })),
-  removeFormula: (id) => set((s) => ({ formulas: s.formulas.filter(f => f.id !== id) })),
-  pomodoroActive: false,
-  setPomodoroActive: (v) => set({ pomodoroActive: v }),
-  streakDays: 0,
-  xp: 0,
-  addXP: (amount) => set((s) => ({ xp: s.xp + amount })),
-  studyHoursToday: 0,
-  productivityScore: 0,
-}))
+      sessions: [],
+      addSession: (session) => set((s) => ({ sessions: [session, ...s.sessions] })),
+
+      focusSessions: [],
+      addFocusSession: (fs) => set((s) => ({ focusSessions: [fs, ...s.focusSessions] })),
+
+      mockTests: [],
+      addMockTest: (test) => set((s) => ({ mockTests: [...s.mockTests, test] })),
+
+      bookmarks: [],
+      addBookmark: (q) => set((s) => ({ bookmarks: [q, ...s.bookmarks] })),
+      removeBookmark: (id) => set((s) => ({ bookmarks: s.bookmarks.filter(b => b.id !== id) })),
+      updateBookmark: (id, updates) => set((s) => ({
+        bookmarks: s.bookmarks.map(b => b.id === id ? { ...b, ...updates } : b),
+      })),
+
+      tasks: [],
+      addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
+      toggleTask: (id) => set((s) => ({
+        tasks: s.tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t),
+      })),
+
+      formulas: [],
+      addFormula: (f) => set((s) => ({ formulas: [f, ...s.formulas] })),
+      updateFormula: (id, updates) => set((s) => ({
+        formulas: s.formulas.map(f => f.id === id ? { ...f, ...updates } : f),
+      })),
+      removeFormula: (id) => set((s) => ({ formulas: s.formulas.filter(f => f.id !== id) })),
+
+      pomodoroActive: false,
+      setPomodoroActive: (v) => set({ pomodoroActive: v }),
+      streakDays: 0,
+      xp: 0,
+      addXP: (amount) => set((s) => ({ xp: s.xp + amount })),
+    }),
+    {
+      name: 'jcc-store-v1',
+      partialize: (state) => ({
+        chapters:      state.chapters,
+        tasks:         state.tasks,
+        bookmarks:     state.bookmarks,
+        formulas:      state.formulas,
+        sessions:      state.sessions,
+        focusSessions: state.focusSessions,
+        mockTests:     state.mockTests,
+        streakDays:    state.streakDays,
+        xp:            state.xp,
+      }),
+    }
+  )
+)
