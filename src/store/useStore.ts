@@ -56,18 +56,6 @@ export interface MockTest {
   accuracy: number
 }
 
-export interface MinorTest {
-  id: string
-  date: string
-  name: string
-  physics: number
-  chemistry: number
-  maths: number
-  total: number
-  maxMarks: number
-  accuracy: number
-}
-
 export interface BookmarkedQuestion {
   id: string
   subject: Subject
@@ -113,8 +101,6 @@ interface AppState {
   addFocusSession: (s: FocusSession) => void
   mockTests: MockTest[]
   addMockTest: (test: MockTest) => void
-  minorTests: MinorTest[]
-  addMinorTest: (test: MinorTest) => void
   bookmarks: BookmarkedQuestion[]
   addBookmark: (q: BookmarkedQuestion) => void
   removeBookmark: (id: string) => void
@@ -279,8 +265,6 @@ export const useStore = create<AppState>()(
 
       mockTests: [],
       addMockTest: (test) => set((s) => ({ mockTests: [...s.mockTests, test] })),
-      minorTests: [],
-      addMinorTest: (test) => set((s) => ({ minorTests: [...s.minorTests, test] })),
 
       bookmarks: [],
       addBookmark: (q) => set((s) => ({ bookmarks: [q, ...s.bookmarks] })),
@@ -318,7 +302,6 @@ export const useStore = create<AppState>()(
         sessions:      state.sessions,
         focusSessions: state.focusSessions,
         mockTests:     state.mockTests,
-        minorTests:    state.minorTests,
         streakDays:    state.streakDays,
         xp:            state.xp,
       }),
