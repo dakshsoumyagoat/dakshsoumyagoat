@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useStore } from '../store/useStore'
 import type { Subject } from '../store/useStore'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Pause, RotateCcw, Coffee, Zap, Timer, Plus, Minus, Settings } from 'lucide-react'
+import { Play, Pause, RotateCcw, Timer, Plus, Minus, Settings, Music2, Upload, SkipBack, SkipForward, Trash2, ChevronUp, ChevronDown, X, LogOut } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { PageHeader, PageShell } from './PageShell'
 
 const PRESETS = [
   { label: 'Pomodoro',     work: 25,  break: 5,  color: 'var(--neon)' },
@@ -64,6 +63,20 @@ function formatTime(sec: number) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+interface AudioTrack {
+  id: string
+  name: string
+  url: string
+  duration?: number
+}
+
+function formatAudioTime(seconds?: number) {
+  if (!seconds || !Number.isFinite(seconds)) return '--:--'
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.floor(seconds % 60)
+  return `${minutes}:${String(remainder).padStart(2, '0')}`
+}
+
 function TimeStepper({
   label, value, onChange, min = 1, max = 180, disabled, color,
 }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; disabled: boolean; color: string }) {
@@ -110,7 +123,7 @@ function TimeStepper({
   )
 }
 
-export default function FocusMode() {
+export default function FocusMode({ onExit }: { onExit: () => void }) {
   const { addXP, addFocusSession, focusSessions } = useStore()
 
   const restored = loadSession()
@@ -126,9 +139,17 @@ export default function FocusMode() {
   const [seconds, setSeconds]    = useState(restored?.seconds ?? PRESETS[0].work * 60)
 
   const [completedPomodoros, setCompletedPomodoros] = useState(0)
+  const [queue, setQueue] = useState<AudioTrack[]>([])
+  const [activeTrack, setActiveTrack] = useState(0)
+  const [audioPlaying, setAudioPlaying] = useState(false)
+  const [queueOpen, setQueueOpen] = useState(true)
 
   const intervalRef = useRef<number | null>(null)
   const endTimeRef  = useRef<number>(restored ? Date.now() + restored.seconds * 1000 : 0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const objectUrlsRef = useRef<string[]>([])
+  const audioIntentRef = useRef(false)
 
   const currentPreset = PRESETS[mode]
   const totalSeconds  = (isWork ? workMin : brkMin) * 60
@@ -140,10 +161,94 @@ export default function FocusMode() {
   const totalToday    = todaySessions.reduce((a, s) => a + s.duration / 60, 0)
   const sessionCount  = todaySessions.length
 
-  const subjectTotals = SUBJECTS.map(s => ({
-    ...s,
-    minutes: todaySessions.filter(fs => fs.subject === s.value).reduce((a, fs) => a + fs.duration, 0),
-  }))
+  const currentTrack = queue[activeTrack]
+
+  const addAudioFiles = (files: FileList | File[]) => {
+    const mp3Files = Array.from(files).filter(file =>
+      file.type === 'audio/mpeg' || file.name.toLowerCase().endsWith('.mp3'),
+    )
+    const tracks = mp3Files.map((file, index) => {
+      const url = URL.createObjectURL(file)
+      objectUrlsRef.current.push(url)
+      return { id: `${file.name}-${file.lastModified}-${index}`, name: file.name, url }
+    })
+    if (tracks.length) {
+      setQueue(previous => [...previous, ...tracks])
+      if (!queue.length) setActiveTrack(0)
+    }
+  }
+
+  const playAudio = () => {
+    if (!audioRef.current || !currentTrack) return
+    audioIntentRef.current = true
+    void audioRef.current.play().catch(() => setAudioPlaying(false))
+  }
+
+  const pauseAudio = () => {
+    audioIntentRef.current = false
+    audioRef.current?.pause()
+  }
+
+  const selectTrack = (index: number, shouldPlay = false) => {
+    if (!queue.length) return
+    audioIntentRef.current = shouldPlay
+    setActiveTrack((index + queue.length) % queue.length)
+  }
+
+  const removeTrack = (id: string) => {
+    const removedIndex = queue.findIndex(track => track.id === id)
+    const removed = queue[removedIndex]
+    if (removed) URL.revokeObjectURL(removed.url)
+    const nextQueue = queue.filter(track => track.id !== id)
+    if (!nextQueue.length) {
+      audioIntentRef.current = false
+      audioRef.current?.pause()
+      if (audioRef.current) audioRef.current.src = ''
+      setAudioPlaying(false)
+      setActiveTrack(0)
+    } else if (removedIndex < activeTrack) {
+      setActiveTrack(activeTrack - 1)
+    } else if (removedIndex === activeTrack) {
+      setActiveTrack(Math.min(activeTrack, nextQueue.length - 1))
+    }
+    setQueue(nextQueue)
+  }
+
+  const moveTrack = (index: number, direction: -1 | 1) => {
+    const destination = index + direction
+    if (destination < 0 || destination >= queue.length) return
+    const nextQueue = [...queue]
+    const [track] = nextQueue.splice(index, 1)
+    nextQueue.splice(destination, 0, track)
+    setQueue(nextQueue)
+    if (activeTrack === index) setActiveTrack(destination)
+    else if (activeTrack === destination) setActiveTrack(index)
+  }
+
+  const clearQueue = () => {
+    objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+    objectUrlsRef.current = []
+    audioIntentRef.current = false
+    audioRef.current?.pause()
+    if (audioRef.current) audioRef.current.src = ''
+    setQueue([])
+    setActiveTrack(0)
+    setAudioPlaying(false)
+  }
+
+  useEffect(() => {
+    const audio = audioRef.current
+    const track = queue[activeTrack]
+    if (!audio || !track) return
+    audio.src = track.url
+    audio.load()
+    if (audioIntentRef.current) void audio.play().catch(() => setAudioPlaying(false))
+  }, [activeTrack, currentTrack?.url])
+
+  useEffect(() => () => {
+    audioRef.current?.pause()
+    objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+  }, [])
 
   // ── Switch preset ─────────────────────────────────────────────────────────
   const switchMode = (i: number) => {
@@ -210,219 +315,159 @@ export default function FocusMode() {
     setSeconds(workMin * 60); endTimeRef.current = 0
   }
 
-  const R = 90, C = 2 * Math.PI * R
+  const R = 120, C = 2 * Math.PI * R
   const dashOffset = C * (1 - progress)
 
   return (
-    <PageShell>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        {/* Header */}
-        <PageHeader eyebrow="FOCUS ENGINE" title="Focus Mode" />
-
-        {/* Resumed banner */}
-        <AnimatePresence>
-          {resumed && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--neon)', background: '#39ff1410', marginBottom: 16, fontSize: 12, color: 'var(--neon)', fontWeight: 600 }}>
-              <Timer size={14} />
-              Session restored — your timer kept running while you were away!
-              <button onClick={() => setResumed(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="focus-grid content-grid" style={{ alignItems: 'start' }}>
-          {/* ── Left: Timer ── */}
+    <div className="focus-workspace">
+      <audio
+        ref={audioRef}
+        onPlay={() => setAudioPlaying(true)}
+        onPause={() => setAudioPlaying(false)}
+        onEnded={() => {
+          if (queue.length > 1) selectTrack(activeTrack + 1, true)
+          else if (audioRef.current) {
+            audioRef.current.currentTime = 0
+            void audioRef.current.play().catch(() => setAudioPlaying(false))
+          }
+        }}
+        onLoadedMetadata={event => {
+          const duration = event.currentTarget.duration
+          if (currentTrack) setQueue(previous => previous.map(track => track.id === currentTrack.id ? { ...track, duration } : track))
+        }}
+      />
+      <header className="focus-topbar">
+        <div className="focus-identity">
+          <div className="focus-mark">JEE</div>
           <div>
-            {/* Preset selector */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-              {PRESETS.map((p, i) => (
-                <button key={p.label} onClick={() => switchMode(i)} disabled={running}
-                  style={{
-                    padding: '7px 14px', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
-                    fontWeight: 600, fontSize: 13, opacity: running && mode !== i ? 0.35 : 1,
-                    background: mode === i ? p.color : 'var(--bg-elevated)',
-                    color: mode === i ? '#000' : 'var(--text-muted)', transition: 'all 0.15s',
-                    display: 'flex', alignItems: 'center', gap: 5,
-                  }}>
-                  {i === 3 && <Settings size={12} />}{p.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Subject selector */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-              {SUBJECTS.map(s => (
-                <button key={s.value} onClick={() => !running && setSubject(s.value)} disabled={running}
-                  style={{
-                    flex: 1, padding: '6px 0', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
-                    fontWeight: 600, fontSize: 11, transition: 'all 0.15s',
-                    background: subject === s.value ? s.color + '25' : 'var(--bg-elevated)',
-                    color: subject === s.value ? s.color : 'var(--text-muted)',
-                    outline: subject === s.value ? `1px solid ${s.color}50` : 'none',
-                    opacity: running && subject !== s.value ? 0.35 : 1,
-                  }}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Time steppers */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-              <div style={{ flex: 1 }}>
-                <TimeStepper label="Work" value={workMin} onChange={setWorkMin} min={1} max={180} disabled={running} color={currentPreset.color} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <TimeStepper label="Break" value={brkMin} onChange={setBrkMin} min={1} max={60} disabled={running} color="var(--blue)" />
-              </div>
-            </div>
-
-            {/* Phase pills */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
-              <div style={{
-                flex: 1, padding: '8px', textAlign: 'center', borderRadius: 8, cursor: 'pointer',
-                background: isWork ? '#39ff1415' : 'var(--bg-elevated)',
-                border: isWork ? '1px solid var(--neon)' : '1px solid var(--border)',
-                color: isWork ? 'var(--neon)' : 'var(--text-muted)', fontSize: 13, fontWeight: 600,
-              }} onClick={() => { if (!running) { setIsWork(true); setSeconds(workMin * 60) } }}>
-                <Zap size={14} style={{ display: 'inline', marginRight: 6 }} />Work · {workMin}m
-              </div>
-              <div style={{
-                flex: 1, padding: '8px', textAlign: 'center', borderRadius: 8, cursor: 'pointer',
-                background: !isWork ? '#3b82f615' : 'var(--bg-elevated)',
-                border: !isWork ? '1px solid var(--blue)' : '1px solid var(--border)',
-                color: !isWork ? 'var(--blue)' : 'var(--text-muted)', fontSize: 13, fontWeight: 600,
-              }} onClick={() => { if (!running) { setIsWork(false); setSeconds(brkMin * 60) } }}>
-                <Coffee size={14} style={{ display: 'inline', marginRight: 6 }} />Break · {brkMin}m
-              </div>
-            </div>
-
-            {/* Timer circle */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-              <div style={{ position: 'relative', width: 220, height: 220 }}>
-                <svg width="220" height="220" style={{ transform: 'rotate(-90deg)' }}>
-                  <circle cx="110" cy="110" r={R} fill="none" stroke="var(--border)" strokeWidth={4} />
-                  <circle cx="110" cy="110" r={R} fill="none" stroke={currentPreset.color} strokeWidth={4}
-                    strokeDasharray={C} strokeDashoffset={dashOffset} strokeLinecap="round"
-                    style={{ transition: 'stroke-dashoffset 0.5s', filter: `drop-shadow(0 0 8px ${currentPreset.color})` }} />
-                </svg>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div className="timer-display" style={{ color: currentPreset.color }}>{formatTime(seconds)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{isWork ? 'FOCUS' : 'BREAK'}</div>
-                  {/* Subject badge */}
-                  <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700,
-                    color: SUBJECTS.find(s => s.value === subject)?.color ?? 'var(--text-muted)',
-                    background: (SUBJECTS.find(s => s.value === subject)?.color ?? 'var(--text-muted)') + '20',
-                    padding: '2px 8px', borderRadius: 999 }}>
-                    {subject}
-                  </div>
-                  {running && (
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--neon)', animation: 'pulse 1.2s infinite' }} />
-                      SAVED
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button onClick={handleReset} className="btn-ghost"
-                style={{ width: 48, height: 48, borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <RotateCcw size={18} />
-              </button>
-              <button onClick={() => running ? handlePause() : handleStart()}
-                style={{
-                  width: 72, height: 72, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                  background: running ? 'transparent' : currentPreset.color,
-                  color: running ? currentPreset.color : '#000',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  outline: running ? `2px solid ${currentPreset.color}` : 'none',
-                  boxShadow: running ? 'none' : `0 0 20px ${currentPreset.color}66`,
-                  transition: 'all 0.2s',
-                }}>
-                {running ? <Pause size={28} /> : <Play size={28} fill={running ? 'none' : '#000'} />}
-              </button>
-              <div style={{ width: 48, height: 48 }} /> {/* spacer */}
-            </div>
-
-            {/* Pomodoro dots */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 24 }}>
-              {Array.from({ length: 8 }, (_, i) => (
-                <div key={i} style={{
-                  width: 10, height: 10, borderRadius: '50%',
-                  background: i < completedPomodoros % 8 ? currentPreset.color : 'var(--border)',
-                  boxShadow: i < completedPomodoros % 8 ? `0 0 6px ${currentPreset.color}` : 'none',
-                }} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Right sidebar ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-            {/* Today's focus stats */}
-            <div className="card" style={{ padding: '16px' }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Today's Focus</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                {[
-                  { label: 'Hours',    value: totalToday > 0 ? totalToday.toFixed(1) + 'h' : '0h', color: 'var(--neon)' },
-                  { label: 'Sessions', value: sessionCount, color: 'var(--blue)' },
-                ].map(s => (
-                  <div key={s.label} style={{ textAlign: 'center', padding: '8px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
-                    <div className="section-title" style={{ marginTop: 2 }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Per-subject breakdown */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}>BY SUBJECT</div>
-                {subjectTotals.map(s => (
-                  <div key={s.value} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>{s.label}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: s.minutes > 0 ? s.color : 'var(--text-muted)' }}>
-                      {s.minutes > 0 ? (s.minutes / 60).toFixed(1) + 'h' : '—'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Session history from store */}
-            <div className="card" style={{ padding: '16px' }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Session History</div>
-              {focusSessions.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
-                  No sessions recorded yet.<br />
-                  <span style={{ fontSize: 10 }}>Complete a focus session to see history.</span>
-                </div>
-              ) : (
-                focusSessions.slice(0, 8).map((s, i) => {
-                  const subColor = SUBJECTS.find(sub => sub.value === s.subject)?.color ?? 'var(--text-muted)'
-                  return (
-                    <div key={s.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      paddingBottom: 8, marginBottom: 8,
-                      borderBottom: i < Math.min(focusSessions.length, 8) - 1 ? '1px solid var(--border)' : 'none',
-                    }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: subColor, flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600 }}>{s.subject}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.date} · {s.mode}</div>
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: subColor }}>{s.duration}m</span>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+            <div className="focus-kicker">FOCUS ENGINE</div>
+            <div className="focus-title">Quiet cockpit</div>
           </div>
         </div>
-      </motion.div>
-    </PageShell>
+        <div className="focus-context">
+          <span className="focus-status-dot" />
+          {subject} <span>·</span> {isWork ? 'Focus session' : 'Break'}
+          {running && <span className="focus-saved">Saved locally</span>}
+        </div>
+        <button className="focus-exit" onClick={onExit} aria-label="Exit focus mode">
+          <LogOut size={15} /> Exit focus
+        </button>
+      </header>
+
+      <main className="focus-main">
+        <motion.section className="focus-stage" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="focus-stage-heading">
+            <div>
+              <div className="section-title">CURRENT SESSION</div>
+              <div className="focus-stage-label">{isWork ? 'Deep work, one minute at a time.' : 'Recharge before the next round.'}</div>
+            </div>
+            <div className="focus-pomodoro-count">
+              {String(completedPomodoros).padStart(2, '0')} <span>completed</span>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {resumed && (
+              <motion.div className="focus-resumed" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Timer size={14} /> Session restored — your timer kept running while you were away.
+                <button onClick={() => setResumed(false)} aria-label="Dismiss session restored message"><X size={14} /></button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="focus-timer-wrap" role="timer" aria-label={`${isWork ? 'Focus' : 'Break'} timer, ${formatTime(seconds)} remaining`}>
+            <div className={`focus-orbit ${running ? 'is-running' : ''}`} style={{ '--phase-color': currentPreset.color } as React.CSSProperties}>
+              <svg className="focus-ring" viewBox="0 0 300 300" aria-hidden="true">
+                <circle cx="150" cy="150" r={R} fill="none" stroke="var(--border)" strokeWidth={5} />
+                <circle cx="150" cy="150" r={R} fill="none" stroke={currentPreset.color} strokeWidth={5}
+                  strokeDasharray={C} strokeDashoffset={dashOffset} strokeLinecap="round" />
+              </svg>
+              <div className="focus-timer-content">
+                <div className="timer-display" style={{ color: currentPreset.color }}>{formatTime(seconds)}</div>
+                <div className="focus-phase">{isWork ? 'FOCUS' : 'BREAK'}</div>
+                <div className="focus-subject" style={{ color: SUBJECTS.find(s => s.value === subject)?.color }}>{subject}</div>
+                <div className={`focus-save-state ${running ? 'visible' : ''}`}><span /> {running ? 'SAVED LOCALLY' : 'READY WHEN YOU ARE'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="focus-controls">
+            <button className="focus-round-button" onClick={handleReset} aria-label="Reset timer"><RotateCcw size={18} /></button>
+            <button className="focus-play-button" onClick={() => running ? handlePause() : handleStart()} aria-label={running ? 'Pause timer' : 'Start timer'} aria-pressed={running} style={{ '--phase-color': currentPreset.color } as React.CSSProperties}>
+              {running ? <Pause size={28} /> : <Play size={28} fill="currentColor" />}
+            </button>
+            <div className="focus-round-spacer" />
+          </div>
+
+          <div className="focus-dots" aria-label={`${completedPomodoros} completed focus sessions`}>
+            {Array.from({ length: 8 }, (_, i) => <span key={i} className={i < completedPomodoros % 8 ? 'complete' : ''} style={{ '--dot-color': currentPreset.color } as React.CSSProperties} />)}
+          </div>
+
+          <section className="focus-setup">
+            <div className="focus-setup-header">
+              <div><div className="section-title">SESSION SETUP</div><div className="focus-setup-hint">Choose a pace before you begin.</div></div>
+              <Settings size={16} />
+            </div>
+            <div className="focus-preset-row">
+              {PRESETS.map((preset, index) => (
+                <button key={preset.label} className={`focus-preset ${mode === index ? 'selected' : ''}`} onClick={() => switchMode(index)} disabled={running} aria-pressed={mode === index} style={{ '--phase-color': preset.color } as React.CSSProperties}>
+                  {index === 3 && <Settings size={12} />}{preset.label}
+                </button>
+              ))}
+            </div>
+            <div className="focus-subject-row">
+              {SUBJECTS.map(item => (
+                <button key={item.value} className={`focus-subject-option ${subject === item.value ? 'selected' : ''}`} onClick={() => !running && setSubject(item.value)} disabled={running} aria-pressed={subject === item.value} style={{ '--subject-color': item.color } as React.CSSProperties}>{item.label}</button>
+              ))}
+            </div>
+            <div className="focus-stepper-row">
+              <TimeStepper label="Work" value={workMin} onChange={setWorkMin} min={1} max={180} disabled={running} color={currentPreset.color} />
+              <TimeStepper label="Break" value={brkMin} onChange={setBrkMin} min={1} max={60} disabled={running} color="var(--blue)" />
+            </div>
+          </section>
+        </motion.section>
+
+        <aside className={`focus-queue-panel ${queueOpen ? 'open' : ''}`}>
+          <div className="focus-queue-header">
+            <div className="focus-queue-heading"><div className="focus-queue-icon"><Music2 size={17} /></div><div><div className="focus-queue-title">Sound queue</div><div className="focus-queue-meta">{queue.length ? `${queue.length} MP3${queue.length === 1 ? '' : 's'} · loops continuously` : 'Optional study atmosphere'}</div></div></div>
+            <button className="focus-mobile-close" onClick={() => setQueueOpen(false)} aria-label="Close sound queue"><X size={16} /></button>
+          </div>
+          <div className="focus-audio-now">
+            <div className="focus-audio-now-icon"><Music2 size={18} /></div>
+            <div className="focus-audio-now-copy"><div className="section-title">NOW PLAYING</div><strong>{currentTrack?.name ?? 'No track selected'}</strong><span>{currentTrack ? formatAudioTime(currentTrack.duration) : 'Drop MP3s below to begin'}</span></div>
+            {currentTrack && <button className="focus-audio-toggle" onClick={audioPlaying ? pauseAudio : playAudio} aria-label={audioPlaying ? 'Pause audio' : 'Play audio'} aria-pressed={audioPlaying}>{audioPlaying ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}</button>}
+          </div>
+          <div className="focus-audio-controls">
+            <button onClick={() => selectTrack(activeTrack - 1, audioPlaying)} disabled={!queue.length} aria-label="Previous track"><SkipBack size={15} /></button>
+            <button onClick={audioPlaying ? pauseAudio : playAudio} disabled={!queue.length} className="focus-audio-main-toggle" aria-label={audioPlaying ? 'Pause queue' : 'Play queue'}>{audioPlaying ? <Pause size={17} /> : <Play size={17} fill="currentColor" />}</button>
+            <button onClick={() => selectTrack(activeTrack + 1, audioPlaying)} disabled={!queue.length} aria-label="Next track"><SkipForward size={15} /></button>
+          </div>
+          <div className="focus-dropzone" onClick={() => fileInputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); addAudioFiles(event.dataTransfer.files) }}>
+            <Upload size={18} /><strong>Add MP3 files</strong><span>Drop files here or browse your device</span>
+            <input ref={fileInputRef} type="file" accept="audio/mpeg,.mp3" multiple onChange={event => { if (event.target.files) addAudioFiles(event.target.files); event.target.value = '' }} />
+          </div>
+          {queue.length > 0 && <div className="focus-queue-actions"><span>QUEUE</span><button onClick={clearQueue}><Trash2 size={12} /> Clear all</button></div>}
+          <div className="focus-track-list">
+            {queue.length === 0 ? <div className="focus-empty-queue"><Music2 size={22} /><span>Drop MP3s here to study with sound.</span></div> : queue.map((track, index) => (
+              <div className={`focus-track ${index === activeTrack ? 'active' : ''}`} key={track.id} aria-current={index === activeTrack ? 'true' : undefined} onClick={() => selectTrack(index, audioPlaying)}>
+                <button className="focus-track-play" onClick={event => { event.stopPropagation(); selectTrack(index, index === activeTrack ? !audioPlaying : true) }} aria-label={`${index === activeTrack && audioPlaying ? 'Pause' : 'Play'} ${track.name}`}>{index === activeTrack && audioPlaying ? <Pause size={13} /> : <Play size={13} fill="currentColor" />}</button>
+                <div className="focus-track-copy"><strong>{track.name}</strong><span>{formatAudioTime(track.duration)}</span></div>
+                <div className="focus-track-actions">
+                  <button onClick={event => { event.stopPropagation(); moveTrack(index, -1) }} disabled={index === 0} aria-label={`Move ${track.name} up`}><ChevronUp size={13} /></button>
+                  <button onClick={event => { event.stopPropagation(); moveTrack(index, 1) }} disabled={index === queue.length - 1} aria-label={`Move ${track.name} down`}><ChevronDown size={13} /></button>
+                  <button onClick={event => { event.stopPropagation(); removeTrack(track.id) }} aria-label={`Remove ${track.name}`}><X size={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+        {!queueOpen && <button className="focus-open-queue" onClick={() => setQueueOpen(true)}><Music2 size={15} /> Sound queue {queue.length ? `(${queue.length})` : ''}</button>}
+      </main>
+
+      <footer className="focus-footer">
+        <div className="focus-today-summary"><span className="section-title">TODAY</span><strong>{totalToday > 0 ? totalToday.toFixed(1) : '0'}h focused</strong><span>·</span><strong>{sessionCount} sessions</strong></div>
+        <div className="focus-footer-note">Your timer and queue stay local to this device.</div>
+      </footer>
+    </div>
   )
 }

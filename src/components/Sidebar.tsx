@@ -1,7 +1,7 @@
 import { useStore } from '../store/useStore'
 import {
   LayoutDashboard, CalendarDays, Calendar, BarChart3,
-  Target, Zap, Flame, Trophy, ChevronRight
+  Target, Zap, StickyNote, Flame, Trophy, ChevronRight
 } from 'lucide-react'
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'tests', label: 'Test Analytics', icon: BarChart3 },
   { id: 'revision', label: 'Revision System', icon: Target },
+  { id: 'notes', label: 'Important Notes', icon: StickyNote },
   { id: 'focus', label: 'Focus Mode', icon: Zap },
 ]
 
@@ -25,6 +26,13 @@ export default function Sidebar() {
     (studyHoursToday > 0 ? Math.round((studyHoursToday / 8) * 50) : 0) +
     (todayTasks.length > 0 ? Math.round((completedTasks / todayTasks.length) * 50) : 0)
   )
+  const handleNavigation = (view: string) => {
+    setActiveView(view)
+    if (view === 'focus' && document.fullscreenElement === null) {
+      const request = document.documentElement.requestFullscreen?.()
+      if (request) void request.catch(() => undefined)
+    }
+  }
 
   return (
     <aside className="app-sidebar">
@@ -66,7 +74,7 @@ export default function Sidebar() {
             <div
               key={item.id}
               className={`sidebar-item ${active ? 'active' : ''}`}
-              onClick={() => setActiveView(item.id)}
+              onClick={() => handleNavigation(item.id)}
               aria-current={active ? 'page' : undefined}
             >
               <Icon size={15} />

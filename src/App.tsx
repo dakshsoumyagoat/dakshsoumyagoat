@@ -6,8 +6,10 @@ import TestAnalytics from './components/TestAnalytics'
 import RevisionSystem from './components/RevisionSystem'
 import FocusMode from './components/FocusMode'
 import CalendarView from './components/CalendarView'
+import ImportantNotes from './components/ImportantNotes'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
+import { useEffect, useRef } from 'react'
 
 const VIEWS: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -15,15 +17,44 @@ const VIEWS: Record<string, React.ComponentType> = {
   calendar: CalendarView,
   tests: TestAnalytics,
   revision: RevisionSystem,
-  focus: FocusMode,
+  notes: ImportantNotes,
 }
 
 export default function App() {
-  const { activeView } = useStore()
+  const { activeView, setActiveView } = useStore()
   const View = VIEWS[activeView] || Dashboard
+  const previousViewRef = useRef('dashboard')
+
+  useEffect(() => {
+    if (activeView !== 'focus') previousViewRef.current = activeView
+  }, [activeView])
+
+  useEffect(() => {
+    if (activeView !== 'focus') return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !document.fullscreenElement) setActiveView(previousViewRef.current)
+    }
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement && activeView === 'focus') setActiveView(previousViewRef.current)
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+    }
+  }, [activeView, setActiveView])
+
+  const exitFocus = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    setActiveView(previousViewRef.current)
+  }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${activeView === 'focus' ? 'focus-active' : ''}`}>
       <Sidebar />
       <main className="app-content">
         <AnimatePresence mode="wait">
@@ -34,7 +65,7 @@ export default function App() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.2 }}
           >
-            <View />
+            {activeView === 'focus' ? <FocusMode onExit={exitFocus} /> : <View />}
           </motion.div>
         </AnimatePresence>
       </main>

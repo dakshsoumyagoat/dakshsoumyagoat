@@ -111,6 +111,20 @@ export interface CalendarEvent {
   color?: string
 }
 
+export type NoteColor = 'yellow' | 'peach' | 'mint' | 'lavender'
+
+export interface ImportantNote {
+  id: string
+  title: string
+  content: string
+  color: NoteColor
+  reminder?: string
+  pinned: boolean
+  completed: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 interface AppState {
   activeView: string
   setActiveView: (view: string) => void
@@ -139,6 +153,12 @@ interface AppState {
   calendarEvents: CalendarEvent[]
   addCalendarEvents: (events: CalendarEvent[]) => void
   removeCalendarEvent: (id: string) => void
+  importantNotes: ImportantNote[]
+  addImportantNote: (note: ImportantNote) => void
+  updateImportantNote: (id: string, updates: Partial<ImportantNote>) => void
+  removeImportantNote: (id: string) => void
+  toggleImportantNoteComplete: (id: string) => void
+  toggleImportantNotePinned: (id: string) => void
   pomodoroActive: boolean
   setPomodoroActive: (v: boolean) => void
   streakDays: number
@@ -323,6 +343,21 @@ export const useStore = create<AppState>()(
         calendarEvents: s.calendarEvents.filter(event => event.id !== id),
       })),
 
+      importantNotes: [],
+      addImportantNote: (note) => set((s) => ({ importantNotes: [note, ...s.importantNotes] })),
+      updateImportantNote: (id, updates) => set((s) => ({
+        importantNotes: s.importantNotes.map(note => note.id === id ? { ...note, ...updates } : note),
+      })),
+      removeImportantNote: (id) => set((s) => ({
+        importantNotes: s.importantNotes.filter(note => note.id !== id),
+      })),
+      toggleImportantNoteComplete: (id) => set((s) => ({
+        importantNotes: s.importantNotes.map(note => note.id === id ? { ...note, completed: !note.completed, updatedAt: new Date().toISOString() } : note),
+      })),
+      toggleImportantNotePinned: (id) => set((s) => ({
+        importantNotes: s.importantNotes.map(note => note.id === id ? { ...note, pinned: !note.pinned, updatedAt: new Date().toISOString() } : note),
+      })),
+
       pomodoroActive: false,
       setPomodoroActive: (v) => set({ pomodoroActive: v }),
       streakDays: 0,
@@ -341,6 +376,7 @@ export const useStore = create<AppState>()(
         focusSessions: state.focusSessions,
         mockTests:     state.mockTests,
         minorTests:    state.minorTests,
+        importantNotes: state.importantNotes,
         streakDays:    state.streakDays,
         xp:            state.xp,
       }),
