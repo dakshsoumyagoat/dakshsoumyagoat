@@ -88,6 +88,7 @@ export default function ImportantNotes() {
   const [status, setStatus] = useState<StatusFilter>('all')
   const [reminderFilter, setReminderFilter] = useState<ReminderFilter>('any')
   const [editing, setEditing] = useState<ImportantNote | null>(null)
+  const [editorOpen, setEditorOpen] = useState(false)
   const [draft, setDraft] = useState(blankNote())
 
   const counts = useMemo(() => ({
@@ -109,15 +110,18 @@ export default function ImportantNotes() {
   const openNew = () => {
     setDraft({ ...blankNote(), reminder: toLocalInputValue(new Date(Date.now() + 86400000)) })
     setEditing(null)
+    setEditorOpen(true)
   }
 
   const openEdit = (note: ImportantNote) => {
     setDraft({ title: note.title, content: note.content, color: note.color, reminder: note.reminder ?? '', pinned: note.pinned, completed: note.completed })
     setEditing(note)
+    setEditorOpen(true)
   }
 
   const closeEditor = () => {
     setEditing(null)
+    setEditorOpen(false)
     setDraft(blankNote())
   }
 
@@ -204,7 +208,7 @@ export default function ImportantNotes() {
         </div>
       </section>
 
-      {editing !== null || draft.title || draft.content ? (
+      {editorOpen ? (
         <div className="note-editor-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeEditor() }}>
           <section className={`note-editor sticky-${draft.color}`} role="dialog" aria-modal="true" aria-labelledby="note-editor-title">
             <div className="note-editor-header"><div><div className="section-title">{editing ? 'EDIT NOTE' : 'NEW NOTE'}</div><h2 id="note-editor-title">{editing ? 'Refine the reminder.' : 'Pin it before you forget.'}</h2></div><button onClick={closeEditor} aria-label="Close note editor"><X size={18} /></button></div>
