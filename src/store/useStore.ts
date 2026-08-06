@@ -101,6 +101,16 @@ export interface FormulaNote {
   pinned: boolean
 }
 
+export interface CalendarEvent {
+  id: string
+  title: string
+  date: string
+  time?: string
+  description?: string
+  type?: string
+  color?: string
+}
+
 interface AppState {
   activeView: string
   setActiveView: (view: string) => void
@@ -126,6 +136,9 @@ interface AppState {
   addFormula: (f: FormulaNote) => void
   updateFormula: (id: string, updates: Partial<FormulaNote>) => void
   removeFormula: (id: string) => void
+  calendarEvents: CalendarEvent[]
+  addCalendarEvents: (events: CalendarEvent[]) => void
+  removeCalendarEvent: (id: string) => void
   pomodoroActive: boolean
   setPomodoroActive: (v: boolean) => void
   streakDays: number
@@ -302,6 +315,14 @@ export const useStore = create<AppState>()(
       })),
       removeFormula: (id) => set((s) => ({ formulas: s.formulas.filter(f => f.id !== id) })),
 
+      calendarEvents: [],
+      addCalendarEvents: (events) => set((s) => ({
+        calendarEvents: [...s.calendarEvents, ...events],
+      })),
+      removeCalendarEvent: (id) => set((s) => ({
+        calendarEvents: s.calendarEvents.filter(event => event.id !== id),
+      })),
+
       pomodoroActive: false,
       setPomodoroActive: (v) => set({ pomodoroActive: v }),
       streakDays: 0,
@@ -315,6 +336,7 @@ export const useStore = create<AppState>()(
         tasks:         state.tasks,
         bookmarks:     state.bookmarks,
         formulas:      state.formulas,
+        calendarEvents: state.calendarEvents,
         sessions:      state.sessions,
         focusSessions: state.focusSessions,
         mockTests:     state.mockTests,

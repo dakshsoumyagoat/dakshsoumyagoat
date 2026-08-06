@@ -1,0 +1,1 @@
+- [Removed views and persisted data](removed-views-and-persisted-data.md) — hide or remove navigation without discarding the store records users may still have saved.

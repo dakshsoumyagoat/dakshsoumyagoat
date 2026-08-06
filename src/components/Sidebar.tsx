@@ -1,79 +1,64 @@
 import { useStore } from '../store/useStore'
 import {
-  LayoutDashboard, BookOpen, Calendar, BarChart3,
-  Target, Zap, BookMarked, FlaskConical, Flame, Trophy, ChevronRight
+  LayoutDashboard, CalendarDays, Calendar, BarChart3,
+  Target, Zap, Flame, Trophy, ChevronRight
 } from 'lucide-react'
 
 const NAV = [
   { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-  { id: 'syllabus', label: 'Syllabus Tracker', icon: BookOpen },
   { id: 'planner', label: 'Study Planner', icon: Calendar },
+  { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'tests', label: 'Test Analytics', icon: BarChart3 },
   { id: 'revision', label: 'Revision System', icon: Target },
   { id: 'focus', label: 'Focus Mode', icon: Zap },
-  { id: 'questions', label: 'Question Bank', icon: BookMarked },
-  { id: 'vault', label: 'Formula Vault', icon: FlaskConical },
 ]
 
 export default function Sidebar() {
-  const { activeView, setActiveView, streakDays, xp, productivityScore } = useStore()
+  const { activeView, setActiveView, streakDays, xp, tasks, focusSessions } = useStore()
+  const today = new Date().toISOString().split('T')[0]
+  const todayTasks = tasks.filter(task => task.date === today)
+  const completedTasks = todayTasks.filter(task => task.completed).length
+  const studyHoursToday = focusSessions
+    .filter(session => session.date === today)
+    .reduce((total, session) => total + session.duration / 60, 0)
+  const productivityScore = Math.min(100,
+    (studyHoursToday > 0 ? Math.round((studyHoursToday / 8) * 50) : 0) +
+    (todayTasks.length > 0 ? Math.round((completedTasks / todayTasks.length) * 50) : 0)
+  )
 
   return (
-    <aside style={{
-      width: 220,
-      minHeight: '100vh',
-      background: 'var(--bg-card)',
-      borderRight: '1px solid var(--border)',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'fixed',
-      left: 0,
-      top: 0,
-      zIndex: 100,
-    }}>
-      {/* Logo */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
-        <img
-          src="./logo1.png"
-          alt="JEE Dashboard"
-          style={{
-            width: 160,
-            height: 160,
-            objectFit: 'contain',
-            display: 'block',
-            filter: 'drop-shadow(0 0 10px #39ff1455)',
-          }}
-        />
+    <aside className="app-sidebar">
+      <div className="sidebar-brand">
+        <div className="sidebar-mark">JEE</div>
+        <div>
+          <div className="sidebar-brand-name">COMMAND CENTER</div>
+          <div className="sidebar-brand-sub">Preparation, engineered.</div>
+        </div>
       </div>
 
-      {/* Stats bar */}
-      <div style={{
-        display: 'flex', gap: 6, padding: '10px 16px',
-        borderBottom: '1px solid var(--border)',
-      }}>
-        <div style={{ flex: 1, textAlign: 'center', padding: '6px 4px', background: 'var(--bg-elevated)', borderRadius: 6 }}>
+      <div className="sidebar-stats">
+        <div className="sidebar-stat">
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
             <Flame size={11} color="var(--amber)" />
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--amber)' }}>{streakDays}</span>
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>STREAK</div>
         </div>
-        <div style={{ flex: 1, textAlign: 'center', padding: '6px 4px', background: 'var(--bg-elevated)', borderRadius: 6 }}>
+        <div className="sidebar-stat">
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
             <Trophy size={11} color="var(--neon)" />
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--neon)' }}>{(xp / 1000).toFixed(1)}k</span>
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>XP</div>
         </div>
-        <div style={{ flex: 1, textAlign: 'center', padding: '6px 4px', background: 'var(--bg-elevated)', borderRadius: 6 }}>
+        <div className="sidebar-stat">
           <div style={{ fontSize: 13, fontWeight: 800, color: productivityScore > 70 ? 'var(--neon)' : 'var(--amber)' }}>{productivityScore}</div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>SCORE</div>
         </div>
       </div>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '8px 10px', overflowY: 'auto' }}>
-        <div className="section-title" style={{ padding: '8px 6px 6px' }}>NAVIGATION</div>
+      <nav className="sidebar-nav" aria-label="Main navigation">
+        <div className="section-title sidebar-nav-label">NAVIGATION</div>
         {NAV.map(item => {
           const Icon = item.icon
           const active = activeView === item.id
@@ -82,6 +67,7 @@ export default function Sidebar() {
               key={item.id}
               className={`sidebar-item ${active ? 'active' : ''}`}
               onClick={() => setActiveView(item.id)}
+              aria-current={active ? 'page' : undefined}
             >
               <Icon size={15} />
               <span style={{ flex: 1 }}>{item.label}</span>

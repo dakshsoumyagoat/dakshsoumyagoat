@@ -4,6 +4,7 @@ import type { Subject } from '../store/useStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Play, Pause, RotateCcw, Coffee, Zap, Timer, Plus, Minus, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { PageHeader, PageShell } from './PageShell'
 
 const PRESETS = [
   { label: 'Pomodoro',     work: 25,  break: 5,  color: 'var(--neon)' },
@@ -213,16 +214,10 @@ export default function FocusMode() {
   const dashOffset = C * (1 - progress)
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <PageShell>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div className="section-title" style={{ marginBottom: 4 }}>FOCUS ENGINE</div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Focus Mode</h1>
-          </div>
-          <img src="/logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
-        </div>
+        <PageHeader eyebrow="FOCUS ENGINE" title="Focus Mode" />
 
         {/* Resumed banner */}
         <AnimatePresence>
@@ -236,7 +231,7 @@ export default function FocusMode() {
           )}
         </AnimatePresence>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, alignItems: 'start' }}>
+        <div className="focus-grid content-grid" style={{ alignItems: 'start' }}>
           {/* ── Left: Timer ── */}
           <div>
             {/* Preset selector */}
@@ -428,6 +423,6 @@ export default function FocusMode() {
           </div>
         </div>
       </motion.div>
-    </div>
+    </PageShell>
   )
 }

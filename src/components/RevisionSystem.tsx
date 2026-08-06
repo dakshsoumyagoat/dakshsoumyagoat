@@ -4,6 +4,7 @@ import type { Chapter } from '../store/useStore'
 import { motion } from 'framer-motion'
 import { RefreshCw, Clock, CheckCircle2, AlertTriangle, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { PageHeader, PageShell } from './PageShell'
 
 // R1→1d, R2→3d, R3→7d, R4→21d, R5→30d (spaced repetition intervals)
 const CYCLES = [
@@ -182,18 +183,12 @@ export default function RevisionSystem() {
   const todayWeekday = (new Date().getDay() + 6) % 7 // 0=Mon
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <PageShell>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div className="section-title" style={{ marginBottom: 4 }}>SPACED REPETITION</div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Revision System</h1>
-          </div>
-          <img src="./logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
-        </div>
+        <PageHeader eyebrow="SPACED REPETITION" title="Revision System" />
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div className="stat-grid" style={{ marginBottom: 20 }}>
           {[
             { label: 'Overdue',   value: overdue,  color: 'var(--red)',   icon: AlertTriangle },
             { label: 'Due Today', value: todayDue, color: 'var(--amber)', icon: Clock },
@@ -350,6 +345,6 @@ export default function RevisionSystem() {
           </div>
         </div>
       </motion.div>
-    </div>
+    </PageShell>
   )
 }

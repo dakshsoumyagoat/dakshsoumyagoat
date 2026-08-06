@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import type { Task } from '../store/useStore'
 import { motion } from 'framer-motion'
 import { Plus, CheckCircle2, Circle, Brain, AlertTriangle } from 'lucide-react'
+import { PageHeader, PageShell } from './PageShell'
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -98,7 +99,6 @@ export default function StudyPlanner() {
   const weakCount   = chapters.filter(c => c.mastery === 'Weak').length
   const dueRevisions = chapters.filter(c => c.nextRevision && new Date(c.nextRevision).getTime() <= Date.now()).length
   const pendingToday = todayTasks.filter(t => !t.completed).length
-  const notStarted  = chapters.filter(c => c.mastery === 'Not Started').length
 
   const insights: { type: string; text: string }[] = []
   if (pendingToday > 0)
@@ -109,20 +109,12 @@ export default function StudyPlanner() {
     insights.push({ type: 'burnout', text: `${weakCount} chapter${weakCount > 1 ? 's' : ''} marked Weak. Schedule targeted practice sessions for them.` })
   if (burnoutRisk >= 60)
     insights.push({ type: 'burnout', text: `Burnout risk is High (${totalWeekHours.toFixed(1)}h this week). Plan a lighter day — rest improves retention.` })
-
-
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <PageShell>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div className="section-title" style={{ marginBottom: 4 }}>PLANNER</div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Adaptive Study Planner</h1>
-          </div>
-          <img src="./logo2.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain', filter: 'drop-shadow(0 0 8px #39ff1466)', opacity: 0.8, flexShrink: 0 }} />
-        </div>
+        <PageHeader eyebrow="PLANNER" title="Adaptive Study Planner" />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20 }}>
+        <div className="planner-grid content-grid">
           {/* Left: Task list */}
           <div>
             {/* Day selector */}
@@ -277,6 +269,6 @@ export default function StudyPlanner() {
           </div>
         </div>
       </motion.div>
-    </div>
+    </PageShell>
   )
 }

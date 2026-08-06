@@ -14,7 +14,7 @@ A modern, futuristic, AI-powered productivity platform for IIT-JEE aspirants. Bu
 
 ## Architecture
 
-- `src/store/useStore.ts` — Global Zustand store with all app state (chapters, sessions, mock tests, tasks, bookmarks, formulas, gamification)
+- `src/store/useStore.ts` — Global Zustand store with all app state (chapters, sessions, mock tests, tasks, bookmarks, calendar events, gamification)
 - `src/components/` — One component file per view/page
 - `src/App.tsx` — Root component with sidebar + animated view router
 - `src/index.css` — Global styles with CSS custom properties for theming
@@ -22,13 +22,11 @@ A modern, futuristic, AI-powered productivity platform for IIT-JEE aspirants. Bu
 ## Features
 
 1. **Command Center (Dashboard)** — Score trends, study heatmap, AI insights, weak chapter alerts, today's targets, skill radar
-2. **Syllabus Tracker** — Per-chapter progress tracking (theory, PYQs, accuracy, mastery) for Physics/Chemistry/Mathematics with expandable rows and sliders
-3. **Study Planner** — Adaptive daily task planner with AI suggestions, burnout meter, weekly load visualization
+2. **Study Planner** — Adaptive daily task planner with AI suggestions, burnout meter, weekly load visualization
+3. **Calendar** — Month-based study calendar with persisted events and CSV import
 4. **Test Analytics** — Mock test logging, score trends, subject-wise performance, rank predictor
 5. **Revision System** — Spaced repetition scheduler (1d/3d/7d/21d/30d cycles), revision calendar, retention health
-6. **Focus Mode** — Pomodoro/Deep Work/Sprint timer with SVG ring, ambient sounds, session tracking
-7. **Question Bank** — Bookmark hard questions, tag mistakes, track attempts, filter by subject/difficulty/solved
-8. **Formula Vault** — Subject-organized notes with pinning, inline editing, markdown-style display
+6. **Focus Mode** — Pomodoro/Deep Work/Sprint timer with SVG ring and session tracking
 
 ## Design System
 

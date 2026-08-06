@@ -1,25 +1,21 @@
 import { useStore } from './store/useStore'
 import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
-import SyllabusTracker from './components/SyllabusTracker'
 import StudyPlanner from './components/StudyPlanner'
 import TestAnalytics from './components/TestAnalytics'
 import RevisionSystem from './components/RevisionSystem'
 import FocusMode from './components/FocusMode'
-import QuestionBank from './components/QuestionBank'
-import FormulaVault from './components/FormulaVault'
+import CalendarView from './components/CalendarView'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
 
 const VIEWS: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
-  syllabus: SyllabusTracker,
   planner: StudyPlanner,
+  calendar: CalendarView,
   tests: TestAnalytics,
   revision: RevisionSystem,
   focus: FocusMode,
-  questions: QuestionBank,
-  vault: FormulaVault,
 }
 
 export default function App() {
@@ -27,9 +23,9 @@ export default function App() {
   const View = VIEWS[activeView] || Dashboard
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className="app-shell">
       <Sidebar />
-      <main style={{ marginLeft: 220, flex: 1, minHeight: '100vh', overflowY: 'auto' }}>
+      <main className="app-content">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeView}
